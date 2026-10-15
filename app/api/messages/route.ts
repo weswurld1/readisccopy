@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { addMessage, getMessages, durable, type Message } from "./store";
 
-// No database (for now). Messages live in memory on the serverless instance.
-// This resets on cold starts and is not shared across regions/instances.
-// Swap `store` for Upstash Redis / a DB later to make it durable.
+// Durable + shared when Upstash/Vercel KV env vars are set; otherwise an
+// in-memory fallback (per-instance, resets on cold start) so the app always runs.
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type Message = {
-  id: string;
-  author: string;
-  content: string;
-  channel: string;
-  ts: number;
-};
-
-type Store = { messages: Message[] };
-
-const g = globalThis as unknown as { __relayStore?: Store };
-const store: Store = g.__relayStore ?? (g.__relayStore = { messages: [] });
-
-const MAX_TOTAL = 1000;
 const MAX_RETURN = 100;
 
 function clean(value: unknown, max: number, fallback = ""): string {
@@ -30,10 +16,8 @@ function clean(value: unknown, max: number, fallback = ""): string {
 export async function GET(req: NextRequest) {
   const channel = clean(req.nextUrl.searchParams.get("channel"), 40, "general");
   const since = Number(req.nextUrl.searchParams.get("since") ?? 0) || 0;
-  const messages = store.messages
-    .filter((m) => m.channel === channel && m.ts > since)
-    .slice(-MAX_RETURN);
-  return NextResponse.json({ messages, now: Date.now() });
+  const messages = (await getMessages(channel, since)).slice(-MAX_RETURN);
+  return NextResponse.json({ messages, now: Date.now(), durable });
 }
 
 export async function POST(req: NextRequest) {
@@ -57,9 +41,6 @@ export async function POST(req: NextRequest) {
     channel,
     ts: Date.now(),
   };
-  store.messages.push(message);
-  if (store.messages.length > MAX_TOTAL) {
-    store.messages = store.messages.slice(-MAX_TOTAL);
-  }
+  await addMessage(message);
   return NextResponse.json({ message });
 }

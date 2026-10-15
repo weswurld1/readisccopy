@@ -23,6 +23,7 @@ export default function Page() {
   const [draft, setDraft] = useState("");
   const [name, setName] = useState("");
   const [sending, setSending] = useState(false);
+  const [durable, setDurable] = useState<boolean | null>(null);
   const sinceRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +60,11 @@ export default function Page() {
         { cache: "no-store" }
       );
       if (!res.ok) return;
-      const data = (await res.json()) as { messages: Message[] };
+      const data = (await res.json()) as {
+        messages: Message[];
+        durable?: boolean;
+      };
+      if (typeof data.durable === "boolean") setDurable(data.durable);
       if (data.messages.length > 0) {
         sinceRef.current = data.messages[data.messages.length - 1].ts;
         setMessages((prev) => {
@@ -178,8 +183,11 @@ export default function Page() {
             </button>
           </form>
           <div className="note">
-            No database yet — messages are in-memory and reset on redeploys and
-            cold starts.
+            {durable === null
+              ? "Connecting…"
+              : durable
+                ? "Synced — messages persist and are shared across everyone."
+                : "In-memory mode — messages reset on redeploys/cold starts. Add Upstash/Vercel KV env vars to persist."}
           </div>
         </div>
       </main>

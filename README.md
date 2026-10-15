@@ -8,16 +8,31 @@ Vercel with zero configuration.
 - `POST /api/messages` appends a message to an in-memory store.
 - Your display name is kept in `localStorage` (per-browser convenience only).
 
-## ⚠️ No-database caveat
-Messages are held in memory inside the serverless function. That means they:
-- reset on every redeploy and on cold starts, and
-- are **not shared** across Vercel instances/regions (two visitors may hit
-  different instances and not see each other).
+## Storage
+Storage auto-selects in [`app/api/messages/store.ts`](app/api/messages/store.ts):
 
-This is intentional for now. To make it durable, replace the `store` in
-[`app/api/messages/route.ts`](app/api/messages/route.ts) with a real backend —
-e.g. Upstash Redis (`@upstash/redis`), Vercel KV, or any database — keeping the
-same GET/POST shape.
+- **Durable + shared** when Upstash Redis / Vercel KV env vars are present —
+  messages persist across redeploys, cold starts, and instances.
+- **In-memory fallback** when they're not — the app still runs, but messages are
+  per-instance and reset on cold starts. The UI shows which mode is active.
+
+### Enable durable storage (Upstash Redis)
+Pick one path:
+
+**A. Vercel Marketplace (easiest)**
+1. Vercel project → **Storage** → **Create** → **Upstash Redis** → connect.
+2. Vercel injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically.
+3. Redeploy. Done.
+
+**B. Upstash console (manual)**
+1. Create a free Redis database at <https://console.upstash.com>.
+2. Copy the **REST URL** and **REST TOKEN**.
+3. Add env vars in Vercel (Project → Settings → Environment Variables):
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
+4. Redeploy.
+
+For local durable testing, put the same vars in `.env.local`.
 
 ## Run locally
 ```bash
