@@ -15,14 +15,19 @@ type Message = {
   ts: number;
 };
 type FriendState = { friends: string[]; incoming: string[]; outgoing: string[] };
+type Guild = { id: string; name: string; owner: string };
 type View =
-  | { type: "channel"; id: string }
+  | { type: "friends" }
   | { type: "dm"; id: string }
-  | { type: "friends"; id: "" }
-  | { type: "voice"; id: string };
+  | { type: "channel"; gid: string; id: string }
+  | { type: "voice"; gid: string };
+type Dialog =
+  | null
+  | { kind: "create" }
+  | { kind: "join" }
+  | { kind: "addChannel" }
+  | { kind: "invite"; code: string };
 
-const CHANNELS = ["general", "random", "dev"];
-const VOICE_ROOM = "lounge";
 const DOWNLOAD_URL =
   "https://github.com/weswurld1/readisccopy/releases/latest/download/Relay-Setup.exe";
 const EMPTY_FRIENDS: FriendState = { friends: [], incoming: [], outgoing: [] };
@@ -40,7 +45,13 @@ export default function ChatApp({
   accountControl?: React.ReactNode;
   avatarUrl?: string;
 }) {
-  const [view, setView] = useState<View>({ type: "channel", id: "general" });
+  const [view, setView] = useState<View>({ type: "friends" });
+
+  const [guilds, setGuilds] = useState<Guild[]>([]);
+  const [channels, setChannels] = useState<string[]>(["general"]);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [dialogInput, setDialogInput] = useState("");
+  const [dialogError, setDialogError] = useState("");
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
@@ -62,9 +73,49 @@ export default function ChatApp({
 
   const sinceRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const viewKey = `${view.type}:${view.id}`;
+  const lastVoiceRoom = useRef("");
+
+  const activeGid =
+    view.type === "channel" || view.type === "voice" ? view.gid : null;
+  const activeGuild = guilds.find((g) => g.id === activeGid) || null;
+  const viewKey =
+    view.type === "channel"
+      ? `c:${view.gid}:${view.id}`
+      : view.type === "dm"
+        ? `dm:${view.id}`
+        : view.type;
 
   const isOnline = useCallback((u: string) => online.includes(u), [online]);
+
+  // ---- load guilds + active guild channels ----
+  const loadGuilds = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/guilds?me=${encodeURIComponent(identity)}`,
+        { cache: "no-store" }
+      );
+      const data = (await res.json()) as { guilds?: Guild[] };
+      setGuilds(data.guilds ?? []);
+    } catch {}
+  }, [identity]);
+
+  useEffect(() => {
+    loadGuilds();
+  }, [loadGuilds]);
+
+  useEffect(() => {
+    if (!activeGid) return;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/guilds?me=${encodeURIComponent(identity)}&gid=${activeGid}`,
+          { cache: "no-store" }
+        );
+        const data = (await res.json()) as { channels?: string[] };
+        setChannels(data.channels ?? ["general"]);
+      } catch {}
+    })();
+  }, [activeGid, identity]);
 
   // ---- sync loop: presence + friends ----
   const sync = useCallback(async () => {
@@ -104,7 +155,7 @@ export default function ChatApp({
   const pollMessages = useCallback(async () => {
     let url = "";
     if (view.type === "channel") {
-      url = `/api/messages?channel=${encodeURIComponent(view.id)}&since=${sinceRef.current}`;
+      url = `/api/messages?guild=${view.gid}&channel=${encodeURIComponent(view.id)}&since=${sinceRef.current}`;
     } else if (view.type === "dm") {
       url = `/api/dm?me=${encodeURIComponent(identity)}&peer=${encodeURIComponent(view.id)}&since=${sinceRef.current}`;
     } else {
@@ -148,7 +199,12 @@ export default function ChatApp({
         await fetch("/api/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content, author: identity, channel: view.id }),
+          body: JSON.stringify({
+            content,
+            author: identity,
+            guild: view.gid,
+            channel: view.id,
+          }),
         });
       } else if (view.type === "dm") {
         await fetch("/api/dm", {
@@ -194,27 +250,22 @@ export default function ChatApp({
     setAddMsg(`Friend request sent to ${target}.`);
   }
 
-  // ---- voice shell (presence-only; skipped when LiveKit audio is active) ----
+  // ---- voice (presence-only shell; skipped when LiveKit audio is active) ----
   useEffect(() => {
-    const active = view.type === "voice" || inVoice;
-    if (!active || live) return;
-
+    if (view.type !== "voice" || live) return;
+    const room = `g_${view.gid}`;
     const tick = async () => {
       try {
         if (inVoice) {
           const res = await fetch("/api/voice", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              me: identity,
-              room: VOICE_ROOM,
-              action: "ping",
-            }),
+            body: JSON.stringify({ me: identity, room, action: "ping" }),
           });
           const data = (await res.json()) as { participants: string[] };
           setParticipants(data.participants ?? []);
         } else {
-          const res = await fetch(`/api/voice?room=${VOICE_ROOM}`, {
+          const res = await fetch(`/api/voice?room=${room}`, {
             cache: "no-store",
           });
           const data = (await res.json()) as { participants: string[] };
@@ -225,13 +276,15 @@ export default function ChatApp({
     tick();
     const id = setInterval(tick, 3000);
     return () => clearInterval(id);
-  }, [view.type, inVoice, identity, live]);
+  }, [view, inVoice, identity, live]);
 
   async function joinVoice() {
-    // Try real audio first; fall back to the presence-only shell.
+    if (view.type !== "voice") return;
+    const room = `g_${view.gid}`;
+    lastVoiceRoom.current = room;
     try {
       const res = await fetch(
-        `/api/voice/token?room=${VOICE_ROOM}&identity=${encodeURIComponent(identity)}`,
+        `/api/voice/token?room=${room}&identity=${encodeURIComponent(identity)}`,
         { cache: "no-store" }
       );
       const data = (await res.json()) as {
@@ -250,25 +303,40 @@ export default function ChatApp({
     await fetch("/api/voice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ me: identity, room: VOICE_ROOM, action: "join" }),
+      body: JSON.stringify({ me: identity, room, action: "join" }),
     });
   }
   async function leaveVoice() {
+    const room = lastVoiceRoom.current;
     const wasLive = live !== null;
     setLive(null);
     setInVoice(false);
-    if (!wasLive) {
+    if (!wasLive && room) {
       await fetch("/api/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          me: identity,
-          room: VOICE_ROOM,
-          action: "leave",
-        }),
+        body: JSON.stringify({ me: identity, room, action: "leave" }),
       });
     }
   }
+
+  // disconnect voice when navigating away from the voice view
+  useEffect(() => {
+    if (view.type === "voice") return;
+    if (!inVoice && !live) return;
+    const room = lastVoiceRoom.current;
+    const wasLive = live !== null;
+    setLive(null);
+    setInVoice(false);
+    if (!wasLive && room) {
+      fetch("/api/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ me: identity, room, action: "leave" }),
+      }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.type]);
 
   // leave voice on unload
   useEffect(() => {
@@ -277,7 +345,13 @@ export default function ChatApp({
       navigator.sendBeacon?.(
         "/api/voice",
         new Blob(
-          [JSON.stringify({ me: identity, room: VOICE_ROOM, action: "leave" })],
+          [
+            JSON.stringify({
+              me: identity,
+              room: lastVoiceRoom.current,
+              action: "leave",
+            }),
+          ],
           { type: "application/json" }
         )
       );
@@ -285,97 +359,209 @@ export default function ChatApp({
     return () => window.removeEventListener("beforeunload", handler);
   }, [inVoice, identity]);
 
+  // ---- guild / dialog actions ----
+  async function guildPost(bodyObj: Record<string, unknown>) {
+    const res = await fetch("/api/guilds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ me: identity, ...bodyObj }),
+    });
+    return res.json();
+  }
+  async function createServer() {
+    const name = dialogInput.trim();
+    if (!name) return;
+    const data = await guildPost({ action: "create", name });
+    if (data.guild) {
+      setGuilds(data.guilds ?? []);
+      setView({ type: "channel", gid: data.guild.id, id: "general" });
+      setDialog(null);
+    } else setDialogError(data.error || "Could not create server");
+  }
+  async function joinServer() {
+    const code = dialogInput.trim();
+    if (!code) return;
+    const data = await guildPost({ action: "join", code });
+    if (data.guild) {
+      setGuilds(data.guilds ?? []);
+      setView({ type: "channel", gid: data.guild.id, id: "general" });
+      setDialog(null);
+    } else setDialogError(data.error || "Invalid invite");
+  }
+  async function makeInvite() {
+    if (!activeGid) return;
+    const data = await guildPost({ action: "invite", gid: activeGid });
+    if (data.code) setDialog({ kind: "invite", code: data.code });
+  }
+  async function createChannel() {
+    const name = dialogInput.trim();
+    if (!name || !activeGid) return;
+    const data = await guildPost({ action: "addChannel", gid: activeGid, name });
+    if (data.channels) {
+      setChannels(data.channels);
+      setDialog(null);
+    } else setDialogError(data.error || "Could not add channel");
+  }
+  function openDialog(kind: "create" | "join" | "addChannel") {
+    setDialogInput("");
+    setDialogError("");
+    setDialog({ kind });
+  }
+
   const header =
     view.type === "channel"
       ? `# ${view.id}`
       : view.type === "dm"
         ? `@ ${view.id}`
         : view.type === "voice"
-          ? `🔊 ${view.id}`
+          ? `🔊 ${activeGuild?.name ?? "Voice"}`
           : "Friends";
+
+  const meFooter = (
+    <div className="me">
+      <div className="me-row">
+        <span className="dot on" />
+        <span className="me-name">{identity}</span>
+        {accountControl ? (
+          <span className="me-account">{accountControl}</span>
+        ) : (
+          <button className="link" onClick={onSwitch}>
+            {switchLabel}
+          </button>
+        )}
+      </div>
+      <div className="note small">
+        {durable === null
+          ? "Connecting…"
+          : durable
+            ? "Synced across everyone"
+            : "In-memory mode (resets on cold starts)"}
+      </div>
+      <a className="download-link" href={DOWNLOAD_URL}>
+        ⬇ Get the Windows app
+      </a>
+    </div>
+  );
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
+      <div className="rail">
+        <button
+          className={`rail-btn home${view.type === "friends" || view.type === "dm" ? " active" : ""}`}
+          title="Home (friends & DMs)"
+          onClick={() => setView({ type: "friends" })}
+        >
           <span className="brand-dot" />
-          Relay
-        </div>
-
-        <nav className="channels">
+        </button>
+        <div className="rail-sep" />
+        {guilds.map((g) => (
           <button
-            className={`channel wide${view.type === "friends" ? " active" : ""}`}
-            onClick={() => setView({ type: "friends", id: "" })}
+            key={g.id}
+            className={`rail-btn${activeGid === g.id ? " active" : ""}`}
+            title={g.name}
+            onClick={() =>
+              setView({ type: "channel", gid: g.id, id: "general" })
+            }
           >
-            👥 Friends
-            {friends.incoming.length > 0 && (
-              <span className="badge">{friends.incoming.length}</span>
-            )}
+            {g.name.slice(0, 2).toUpperCase()}
           </button>
+        ))}
+        <button
+          className="rail-btn add"
+          title="Create a server"
+          onClick={() => openDialog("create")}
+        >
+          +
+        </button>
+        <button
+          className="rail-btn add"
+          title="Join with an invite"
+          onClick={() => openDialog("join")}
+        >
+          ⇲
+        </button>
+      </div>
 
-          <div className="channels-label">Text Channels</div>
-          {CHANNELS.map((c) => (
-            <button
-              key={c}
-              className={`channel${view.type === "channel" && view.id === c ? " active" : ""}`}
-              onClick={() => setView({ type: "channel", id: c })}
-            >
-              <span className="hash">#</span>
-              {c}
-            </button>
-          ))}
-
-          <div className="channels-label">Voice</div>
-          <button
-            className={`channel${view.type === "voice" ? " active" : ""}`}
-            onClick={() => setView({ type: "voice", id: VOICE_ROOM })}
-          >
-            🔊 {VOICE_ROOM}
-            {participants.length > 0 && (
-              <span className="count">{participants.length}</span>
-            )}
-          </button>
-
-          <div className="channels-label">Direct Messages</div>
-          {friends.friends.length === 0 && (
-            <div className="hint">Add friends to DM them.</div>
-          )}
-          {friends.friends.map((f) => (
-            <button
-              key={f}
-              className={`channel${view.type === "dm" && view.id === f ? " active" : ""}`}
-              onClick={() => setView({ type: "dm", id: f })}
-            >
-              <span className={`dot ${isOnline(f) ? "on" : "off"}`} />
-              <Avatar handle={f} url={avatars[f]} size={20} />
-              {f}
-            </button>
-          ))}
-        </nav>
-
-        <div className="me">
-          <div className="me-row">
-            <span className={`dot on`} />
-            <span className="me-name">{identity}</span>
-            {accountControl ? (
-              <span className="me-account">{accountControl}</span>
-            ) : (
-              <button className="link" onClick={onSwitch}>
-                {switchLabel}
+      <aside className="sidebar">
+        {activeGid ? (
+          <>
+            <div className="brand guild-brand">
+              <span className="guild-name">{activeGuild?.name ?? "Server"}</span>
+              <button className="invite-btn" onClick={makeInvite}>
+                Invite
               </button>
-            )}
-          </div>
-          <div className="note small">
-            {durable === null
-              ? "Connecting…"
-              : durable
-                ? "Synced across everyone"
-                : "In-memory mode (resets on cold starts)"}
-          </div>
-          <a className="download-link" href={DOWNLOAD_URL}>
-            ⬇ Get the Windows app
-          </a>
-        </div>
+            </div>
+            <nav className="channels">
+              <div className="channels-label">
+                Text Channels
+                <button
+                  className="mini-add"
+                  title="Add channel"
+                  onClick={() => openDialog("addChannel")}
+                >
+                  +
+                </button>
+              </div>
+              {channels.map((c) => (
+                <button
+                  key={c}
+                  className={`channel${view.type === "channel" && view.id === c ? " active" : ""}`}
+                  onClick={() =>
+                    setView({ type: "channel", gid: activeGid, id: c })
+                  }
+                >
+                  <span className="hash">#</span>
+                  {c}
+                </button>
+              ))}
+              <div className="channels-label">Voice</div>
+              <button
+                className={`channel${view.type === "voice" ? " active" : ""}`}
+                onClick={() => setView({ type: "voice", gid: activeGid })}
+              >
+                🔊 lounge
+                {view.type === "voice" && participants.length > 0 && (
+                  <span className="count">{participants.length}</span>
+                )}
+              </button>
+            </nav>
+            {meFooter}
+          </>
+        ) : (
+          <>
+            <div className="brand">
+              <span className="brand-dot" />
+              Relay
+            </div>
+            <nav className="channels">
+              <button
+                className={`channel wide${view.type === "friends" ? " active" : ""}`}
+                onClick={() => setView({ type: "friends" })}
+              >
+                👥 Friends
+                {friends.incoming.length > 0 && (
+                  <span className="badge">{friends.incoming.length}</span>
+                )}
+              </button>
+              <div className="channels-label">Direct Messages</div>
+              {friends.friends.length === 0 && (
+                <div className="hint">Add friends to DM them.</div>
+              )}
+              {friends.friends.map((f) => (
+                <button
+                  key={f}
+                  className={`channel${view.type === "dm" && view.id === f ? " active" : ""}`}
+                  onClick={() => setView({ type: "dm", id: f })}
+                >
+                  <span className={`dot ${isOnline(f) ? "on" : "off"}`} />
+                  <Avatar handle={f} url={avatars[f]} size={20} />
+                  {f}
+                </button>
+              ))}
+            </nav>
+            {meFooter}
+          </>
+        )}
       </aside>
 
       <main className="main">
@@ -408,7 +594,7 @@ export default function ChatApp({
             </div>
           ) : (
             <VoicePanel
-              room={view.id}
+              room={activeGuild?.name ?? "voice"}
               inVoice={inVoice}
               muted={muted}
               setMuted={setMuted}
@@ -510,6 +696,73 @@ export default function ChatApp({
           }}
           onAction={(action) => friendAction(action, profile)}
         />
+      )}
+
+      {dialog && (
+        <div className="modal-backdrop" onClick={() => setDialog(null)}>
+          <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setDialog(null)}>
+              ✕
+            </button>
+            {dialog.kind === "invite" ? (
+              <>
+                <h3>Invite to {activeGuild?.name ?? "server"}</h3>
+                <p className="muted">
+                  Share this code — anyone can join the server with it.
+                </p>
+                <div className="invite-code">{dialog.code}</div>
+                <button
+                  onClick={() =>
+                    navigator.clipboard?.writeText(dialog.code).catch(() => {})
+                  }
+                >
+                  Copy code
+                </button>
+              </>
+            ) : (
+              <>
+                <h3>
+                  {dialog.kind === "create"
+                    ? "Create a server"
+                    : dialog.kind === "join"
+                      ? "Join a server"
+                      : "New channel"}
+                </h3>
+                <form
+                  className="add-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (dialog?.kind === "create") createServer();
+                    else if (dialog?.kind === "join") joinServer();
+                    else if (dialog?.kind === "addChannel") createChannel();
+                  }}
+                >
+                  <input
+                    autoFocus
+                    value={dialogInput}
+                    maxLength={40}
+                    placeholder={
+                      dialog.kind === "join"
+                        ? "invite code"
+                        : dialog.kind === "create"
+                          ? "server name"
+                          : "channel-name"
+                    }
+                    onChange={(e) => setDialogInput(e.target.value)}
+                  />
+                  <button type="submit">
+                    {dialog.kind === "create"
+                      ? "Create"
+                      : dialog.kind === "join"
+                        ? "Join"
+                        : "Add"}
+                  </button>
+                </form>
+                {dialogError && <div className="add-msg">{dialogError}</div>}
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -35,6 +35,159 @@ body {
   overflow: hidden;
 }
 
+/* ---- server rail ---- */
+.rail {
+  width: 68px;
+  flex-shrink: 0;
+  background: #0f1012;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+.rail-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 24px;
+  border: none;
+  background: var(--bg-input);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-radius 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.rail-btn:hover {
+  border-radius: 16px;
+  background: var(--accent);
+  color: #fff;
+}
+.rail-btn.active {
+  border-radius: 16px;
+  background: var(--accent);
+  color: #fff;
+}
+.rail-btn.home {
+  background: var(--bg-input);
+}
+.rail-btn.add {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 20px;
+}
+.rail-btn.add:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.rail-sep {
+  width: 32px;
+  height: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+/* ---- guild sidebar header ---- */
+.guild-brand {
+  justify-content: space-between;
+}
+.guild-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.invite-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.invite-btn:hover {
+  background: var(--accent-hover);
+}
+.channels-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mini-add {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 15px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+.mini-add:hover {
+  color: var(--text);
+}
+
+/* ---- dialog ---- */
+.dialog-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+}
+.dialog-card h3 {
+  font-size: 17px;
+  margin-bottom: 10px;
+}
+.dialog-card .muted {
+  display: block;
+  margin-bottom: 12px;
+}
+.dialog-card .add-form input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 14px;
+  outline: none;
+}
+.dialog-card .add-form button,
+.dialog-card > button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.invite-code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 22px;
+  letter-spacing: 2px;
+  text-align: center;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+  user-select: all;
+}
+
 .sidebar {
   width: 240px;
   flex-shrink: 0;

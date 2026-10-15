@@ -192,6 +192,12 @@ const K = {
   reqOut: (n: string) => `relay:req:out:${n}`,
   voice: (room: string) => `relay:voice:${room}`,
   avatars: "relay:avatars",
+  guild: (id: string) => `relay:guild:${id}`,
+  guildMembers: (id: string) => `relay:guild:${id}:members`,
+  guildChannels: (id: string) => `relay:guild:${id}:channels`,
+  userGuilds: (h: string) => `relay:uguilds:${h}`,
+  invite: (code: string) => `relay:invite:${code}`,
+  gchan: (id: string, c: string) => `relay:gchan:${id}:${c}`,
 };
 
 // ---------- helpers ----------
@@ -337,4 +343,87 @@ export async function leaveVoice(room: string, name: string): Promise<void> {
 
 export function voiceParticipants(room: string): Promise<string[]> {
   return kv.zAbove(K.voice(room), Date.now() - VOICE_TTL);
+}
+
+// ---------- public API: guilds (servers) ----------
+
+export type Guild = { id: string; name: string; owner: string };
+
+function randomId(len: number): string {
+  let s = "";
+  while (s.length < len) s += Math.random().toString(36).slice(2);
+  return s.slice(0, len);
+}
+
+export async function createGuild(owner: string, name: string): Promise<Guild> {
+  const id = randomId(8);
+  await Promise.all([
+    kv.hset(K.guild(id), "name", name),
+    kv.hset(K.guild(id), "owner", owner),
+    kv.sadd(K.guildMembers(id), owner),
+    kv.sadd(K.guildChannels(id), "general"),
+    kv.sadd(K.userGuilds(owner), id),
+  ]);
+  return { id, name, owner };
+}
+
+export async function getGuild(id: string): Promise<Guild | null> {
+  const h = await kv.hgetall(K.guild(id));
+  if (!h || !h.name) return null;
+  return { id, name: h.name, owner: h.owner };
+}
+
+export async function listUserGuilds(handle: string): Promise<Guild[]> {
+  const ids = await kv.smembers(K.userGuilds(handle));
+  const guilds = await Promise.all(ids.map(getGuild));
+  return guilds.filter((g): g is Guild => g !== null);
+}
+
+export async function getGuildChannels(id: string): Promise<string[]> {
+  const ch = await kv.smembers(K.guildChannels(id));
+  ch.sort((a, b) =>
+    a === "general" ? -1 : b === "general" ? 1 : a.localeCompare(b)
+  );
+  return ch.length ? ch : ["general"];
+}
+
+export async function addGuildChannel(id: string, name: string): Promise<void> {
+  await kv.sadd(K.guildChannels(id), name);
+}
+
+export function isGuildMember(id: string, handle: string): Promise<boolean> {
+  return kv.shas(K.guildMembers(id), handle);
+}
+
+export async function createInvite(id: string): Promise<string> {
+  const code = randomId(6);
+  await kv.hset(K.invite(code), "gid", id);
+  return code;
+}
+
+export async function resolveInvite(code: string): Promise<string | null> {
+  const h = await kv.hgetall(K.invite(code));
+  return h?.gid || null;
+}
+
+export async function joinGuild(handle: string, id: string): Promise<Guild | null> {
+  const g = await getGuild(id);
+  if (!g) return null;
+  await Promise.all([
+    kv.sadd(K.guildMembers(id), handle),
+    kv.sadd(K.userGuilds(handle), id),
+  ]);
+  return g;
+}
+
+export async function addGuildMessage(
+  id: string,
+  channel: string,
+  msg: Message
+): Promise<void> {
+  await kv.lpushTrim(K.gchan(id, channel), msg, MAX_PER_CHANNEL);
+}
+
+export function getGuildMessages(id: string, channel: string, since: number) {
+  return readMessages(K.gchan(id, channel), since);
 }
