@@ -62,6 +62,8 @@ export default function ChatApp({
   const [friends, setFriends] = useState<FriendState>(EMPTY_FRIENDS);
   const [durable, setDurable] = useState<boolean | null>(null);
   const [avatars, setAvatars] = useState<Record<string, string>>({});
+  const [activities, setActivities] = useState<Record<string, string>>({});
+  const [myActivity, setMyActivity] = useState("");
   const [profile, setProfile] = useState<string | null>(null);
 
   const [addInput, setAddInput] = useState("");
@@ -125,7 +127,11 @@ export default function ChatApp({
       const res = await fetch("/api/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ me: identity, avatar: avatarUrl }),
+        body: JSON.stringify({
+          me: identity,
+          avatar: avatarUrl,
+          activity: myActivity,
+        }),
         cache: "no-store",
       });
       if (!res.ok) return;
@@ -133,14 +139,26 @@ export default function ChatApp({
         online: string[];
         friends: FriendState | null;
         avatars: Record<string, string>;
+        activities: Record<string, string>;
         durable: boolean;
       };
       setOnline(data.online ?? []);
       if (data.friends) setFriends(data.friends);
       if (data.avatars) setAvatars(data.avatars);
+      if (data.activities) setActivities(data.activities);
       setDurable(data.durable);
     } catch {}
-  }, [identity, avatarUrl]);
+  }, [identity, avatarUrl, myActivity]);
+
+  // desktop app (Electron) reports the game you're playing via a preload bridge
+  useEffect(() => {
+    const relay = (
+      window as unknown as {
+        relay?: { onActivity?: (cb: (g: string | null) => void) => void };
+      }
+    ).relay;
+    relay?.onActivity?.((g) => setMyActivity(g || ""));
+  }, []);
 
   useEffect(() => {
     sync();
@@ -463,6 +481,7 @@ export default function ChatApp({
           </button>
         )}
       </div>
+      {myActivity && <div className="me-activity">🎮 Playing {myActivity}</div>}
       <div className="note small">
         {durable === null
           ? "Connecting…"
@@ -606,6 +625,7 @@ export default function ChatApp({
             friends={friends}
             isOnline={isOnline}
             avatars={avatars}
+            activities={activities}
             openProfile={setProfile}
             addInput={addInput}
             setAddInput={setAddInput}
@@ -742,6 +762,7 @@ export default function ChatApp({
           me={identity}
           avatarUrl={avatars[profile]}
           online={isOnline(profile)}
+          activity={activities[profile]}
           relation={
             profile === identity
               ? "self"
@@ -837,12 +858,13 @@ function ProfileCard(props: {
   me: string;
   avatarUrl?: string;
   online: boolean;
+  activity?: string;
   relation: "self" | "friend" | "incoming" | "outgoing" | "none";
   onClose: () => void;
   onMessage: () => void;
   onAction: (action: string) => void;
 }) {
-  const { handle, avatarUrl, online, relation } = props;
+  const { handle, avatarUrl, online, activity, relation } = props;
   return (
     <div className="modal-backdrop" onClick={props.onClose}>
       <div className="profile-card" onClick={(e) => e.stopPropagation()}>
@@ -859,6 +881,7 @@ function ProfileCard(props: {
             <span className={`dot ${online ? "on" : "off"}`} />
             {online ? "Online" : "Offline"}
           </div>
+          {activity && <div className="profile-activity">🎮 Playing {activity}</div>}
 
           <div className="profile-actions">
             {relation === "self" && (
@@ -929,6 +952,7 @@ function FriendsPanel(props: {
   friends: FriendState;
   isOnline: (u: string) => boolean;
   avatars: Record<string, string>;
+  activities: Record<string, string>;
   openProfile: (h: string) => void;
   addInput: string;
   setAddInput: (v: string) => void;
@@ -937,7 +961,7 @@ function FriendsPanel(props: {
   friendAction: (action: string, target: string) => void;
   openDM: (f: string) => void;
 }) {
-  const { friends, isOnline, avatars, openProfile } = props;
+  const { friends, isOnline, avatars, activities, openProfile } = props;
   return (
     <div className="panel">
       <section className="card">
@@ -1012,7 +1036,13 @@ function FriendsPanel(props: {
               <button className="fname linklike" onClick={() => openProfile(u)}>
                 {u}
               </button>
-              <span className="muted">{isOnline(u) ? "online" : "offline"}</span>
+              <span className="muted">
+                {activities[u]
+                  ? `🎮 ${activities[u]}`
+                  : isOnline(u)
+                    ? "online"
+                    : "offline"}
+              </span>
               <button onClick={() => props.openDM(u)}>Message</button>
               <button
                 className="ghost"

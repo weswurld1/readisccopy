@@ -199,6 +199,7 @@ const K = {
   userGuilds: (h: string) => `relay:uguilds:${h}`,
   invite: (code: string) => `relay:invite:${code}`,
   gchan: (id: string, c: string) => `relay:gchan:${id}:${c}`,
+  activity: "relay:activity",
 };
 
 // ---------- helpers ----------
@@ -273,6 +274,17 @@ export async function setAvatar(handle: string, url: string): Promise<void> {
 
 export function getAvatars(): Promise<Record<string, string>> {
   return kv.hgetall(K.avatars);
+}
+
+// ---------- public API: activity ("Playing X", desktop-detected) ----------
+
+export async function setActivity(handle: string, game: string): Promise<void> {
+  if (!handle) return;
+  await kv.hset(K.activity, handle, game || "");
+}
+
+export function getActivities(): Promise<Record<string, string>> {
+  return kv.hgetall(K.activity);
 }
 
 // ---------- public API: friends ----------

@@ -6,6 +6,45 @@ const {
   desktopCapturer,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const path = require("path");
+const { exec } = require("child_process");
+
+// Minimal "games database": process executable -> display name.
+const GAMES = {
+  "cs2.exe": "Counter-Strike 2",
+  "valorant-win64-shipping.exe": "VALORANT",
+  "leagueoflegends.exe": "League of Legends",
+  "fortniteclient-win64-shipping.exe": "Fortnite",
+  "minecraft.exe": "Minecraft",
+  "gta5.exe": "GTA V",
+  "gtav.exe": "GTA V",
+  "rainbowsix.exe": "Rainbow Six Siege",
+  "overwatch.exe": "Overwatch 2",
+  "dota2.exe": "Dota 2",
+  "r5apex.exe": "Apex Legends",
+  "eldenring.exe": "Elden Ring",
+  "cyberpunk2077.exe": "Cyberpunk 2077",
+  "rocketleague.exe": "Rocket League",
+  "wow.exe": "World of Warcraft",
+  "destiny2.exe": "Destiny 2",
+  "steam.exe": "Steam",
+};
+
+function detectGame(win) {
+  if (process.platform !== "win32" || win.isDestroyed()) return;
+  exec("tasklist /fo csv /nh", { maxBuffer: 8 * 1024 * 1024 }, (err, out) => {
+    if (err || win.isDestroyed()) return;
+    const lower = out.toLowerCase();
+    let found = null;
+    for (const exe of Object.keys(GAMES)) {
+      if (lower.includes(`"${exe}"`)) {
+        found = GAMES[exe];
+        break;
+      }
+    }
+    win.webContents.send("relay:activity", found);
+  });
+}
 
 // The hosted Relay app this desktop shell loads.
 // Change this to YOUR Vercel URL (or set RELAY_URL in the environment).
@@ -23,6 +62,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
@@ -39,6 +79,11 @@ function createWindow() {
     } catch {}
     return { action: "allow" };
   });
+
+  // Poll running processes and report the detected game to the web app.
+  win.webContents.once("did-finish-load", () => detectGame(win));
+  const gameTimer = setInterval(() => detectGame(win), 15000);
+  win.on("closed", () => clearInterval(gameTimer));
 }
 
 app.whenReady().then(() => {

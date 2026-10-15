@@ -6,6 +6,8 @@ import {
   getFriendState,
   setAvatar,
   getAvatars,
+  setActivity,
+  getActivities,
   durable,
 } from "@/app/lib/store";
 import { clean, handle } from "@/app/lib/util";
@@ -23,17 +25,30 @@ export async function POST(req: NextRequest) {
   const b = body as Record<string, unknown>;
   const me = handle(b.me);
   const avatar = clean(b.avatar, 2048);
+  const activity = clean(b.activity, 60);
   if (!me) {
-    const [online, avatars] = await Promise.all([onlineUsers(), getAvatars()]);
-    return NextResponse.json({ online, avatars, durable, friends: null });
+    const [online, avatars, activities] = await Promise.all([
+      onlineUsers(),
+      getAvatars(),
+      getActivities(),
+    ]);
+    return NextResponse.json({
+      online,
+      avatars,
+      activities,
+      durable,
+      friends: null,
+    });
   }
   await registerUser(me);
   await heartbeat(me);
   if (avatar) await setAvatar(me, avatar);
-  const [online, friends, avatars] = await Promise.all([
+  if (b.activity !== undefined) await setActivity(me, activity);
+  const [online, friends, avatars, activities] = await Promise.all([
     onlineUsers(),
     getFriendState(me),
     getAvatars(),
+    getActivities(),
   ]);
-  return NextResponse.json({ online, friends, avatars, durable });
+  return NextResponse.json({ online, friends, avatars, activities, durable });
 }
