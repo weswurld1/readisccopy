@@ -87,9 +87,6 @@ function renderMarkdown(text: string): ReactNode {
   );
 }
 
-const PUSHER_KEY = process.env.NEXT_PUBLIC_PUSHER_KEY;
-const PUSHER_CLUSTER = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
-const pusherEnabled = !!PUSHER_KEY && !!PUSHER_CLUSTER;
 
 type Message = {
   id: string;
@@ -160,6 +157,10 @@ export default function ChatApp({
   const [sourcePick, setSourcePick] = useState<
     { id: string; name: string; thumbnail: string }[] | null
   >(null);
+  const [pusher, setPusher] = useState<{ key: string; cluster: string } | null>(
+    null
+  );
+  const pusherEnabled = !!pusher;
 
   const [addInput, setAddInput] = useState("");
   const [addMsg, setAddMsg] = useState("");
@@ -319,20 +320,27 @@ export default function ChatApp({
     // With Pusher, this is just a slow safety net; without it, it's the engine.
     const id = setInterval(pollMessages, pusherEnabled ? 10000 : 1500);
     return () => clearInterval(id);
-  }, [pollMessages, view.type]);
+  }, [pollMessages, view.type, pusherEnabled]);
 
-  // ---- realtime: connect Pusher once, subscribe to the active topic ----
+  // ---- realtime: fetch config, connect Pusher, subscribe to active topic ----
   useEffect(() => {
-    if (!pusherEnabled) return;
-    const p = new Pusher(PUSHER_KEY as string, {
-      cluster: PUSHER_CLUSTER as string,
-    });
+    fetch("/api/config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { pusher?: { key: string; cluster: string } | null }) => {
+        if (d.pusher) setPusher(d.pusher);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!pusher) return;
+    const p = new Pusher(pusher.key, { cluster: pusher.cluster });
     pusherRef.current = p;
     return () => {
       p.disconnect();
       pusherRef.current = null;
     };
-  }, []);
+  }, [pusher]);
 
   useEffect(() => {
     const p = pusherRef.current;
@@ -373,7 +381,7 @@ export default function ChatApp({
       p.unsubscribe(topic);
       setTyping([]);
     };
-  }, [view, identity]);
+  }, [view, identity, pusher]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

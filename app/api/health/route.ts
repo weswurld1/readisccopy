@@ -28,7 +28,8 @@ export async function GET() {
     },
     auth: !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, // Clerk sign-in
     realtime:
-      !!process.env.NEXT_PUBLIC_PUSHER_KEY &&
+      !!(process.env.NEXT_PUBLIC_PUSHER_KEY || process.env.PUSHER_KEY) &&
+      !!(process.env.NEXT_PUBLIC_PUSHER_CLUSTER || process.env.PUSHER_CLUSTER) &&
       !!process.env.PUSHER_SECRET, // Pusher push messaging
     realtimeEnv: {
       PUSHER_APP_ID: !!process.env.PUSHER_APP_ID,

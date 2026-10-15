@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 
 const enabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-// Protect all API routes except the public health check, when Clerk is on.
-const isProtected = createRouteMatcher(["/api/((?!health).*)"]);
+// Protect all API routes except the public health/config endpoints.
+const isProtected = createRouteMatcher(["/api/((?!health|config).*)"]);
 
 export default enabled
   ? clerkMiddleware(async (auth, req) => {
