@@ -118,6 +118,66 @@ body {
 .invite-btn:hover {
   background: var(--accent-hover);
 }
+.guild-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.leave-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.leave-btn:hover {
+  border-color: #e5484d;
+  color: #e5484d;
+}
+
+/* ---- screen-share source picker ---- */
+.source-picker {
+  max-width: 640px;
+}
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.source-tile {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+.source-tile:hover {
+  border-color: var(--accent);
+}
+.source-tile img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #000;
+}
+.source-name {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .channels-label {
   display: flex;
   align-items: center;

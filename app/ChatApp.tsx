@@ -65,6 +65,9 @@ export default function ChatApp({
   const [activities, setActivities] = useState<Record<string, string>>({});
   const [myActivity, setMyActivity] = useState("");
   const [profile, setProfile] = useState<string | null>(null);
+  const [sourcePick, setSourcePick] = useState<
+    { id: string; name: string; thumbnail: string }[] | null
+  >(null);
 
   const [addInput, setAddInput] = useState("");
   const [addMsg, setAddMsg] = useState("");
@@ -150,15 +153,29 @@ export default function ChatApp({
     } catch {}
   }, [identity, avatarUrl, myActivity]);
 
-  // desktop app (Electron) reports the game you're playing via a preload bridge
+  // desktop app (Electron) bridge: game detection + screen-share source picker
   useEffect(() => {
     const relay = (
       window as unknown as {
-        relay?: { onActivity?: (cb: (g: string | null) => void) => void };
+        relay?: {
+          onActivity?: (cb: (g: string | null) => void) => void;
+          onPickSource?: (
+            cb: (s: { id: string; name: string; thumbnail: string }[]) => void
+          ) => void;
+        };
       }
     ).relay;
     relay?.onActivity?.((g) => setMyActivity(g || ""));
+    relay?.onPickSource?.((list) => setSourcePick(list));
   }, []);
+
+  function chooseSource(id: string | null) {
+    const relay = (
+      window as unknown as { relay?: { chooseSource?: (id: string | null) => void } }
+    ).relay;
+    relay?.chooseSource?.(id);
+    setSourcePick(null);
+  }
 
   useEffect(() => {
     sync();
@@ -458,6 +475,13 @@ export default function ChatApp({
     setDialogError("");
     setDialog({ kind });
   }
+  async function leaveServer() {
+    if (!activeGid) return;
+    if (!window.confirm(`Leave ${activeGuild?.name ?? "this server"}?`)) return;
+    const data = await guildPost({ action: "leave", gid: activeGid });
+    setGuilds(data.guilds ?? []);
+    setView({ type: "friends" });
+  }
 
   const header =
     view.type === "channel"
@@ -539,9 +563,18 @@ export default function ChatApp({
           <>
             <div className="brand guild-brand">
               <span className="guild-name">{activeGuild?.name ?? "Server"}</span>
-              <button className="invite-btn" onClick={makeInvite}>
-                Invite
-              </button>
+              <div className="guild-actions">
+                <button className="invite-btn" onClick={makeInvite}>
+                  Invite
+                </button>
+                <button
+                  className="leave-btn"
+                  onClick={leaveServer}
+                  title="Leave server"
+                >
+                  ⎋
+                </button>
+              </div>
             </div>
             <nav className="channels">
               <div className="channels-label">
@@ -846,6 +879,34 @@ export default function ChatApp({
                 {dialogError && <div className="add-msg">{dialogError}</div>}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {sourcePick && (
+        <div className="modal-backdrop" onClick={() => chooseSource(null)}>
+          <div
+            className="dialog-card source-picker"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="modal-close" onClick={() => chooseSource(null)}>
+              ✕
+            </button>
+            <h3>Share your screen</h3>
+            <p className="muted">Pick a screen or window to share.</p>
+            <div className="source-grid">
+              {sourcePick.map((s) => (
+                <button
+                  key={s.id}
+                  className="source-tile"
+                  onClick={() => chooseSource(s.id)}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s.thumbnail} alt={s.name} />
+                  <span className="source-name">{s.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

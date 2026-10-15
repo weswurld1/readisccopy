@@ -9,6 +9,7 @@ import {
   createInvite,
   resolveInvite,
   joinGuild,
+  leaveGuild,
 } from "@/app/lib/store";
 import { clean, handle } from "@/app/lib/util";
 
@@ -66,6 +67,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "not a member" }, { status: 403 });
   }
 
+  if (action === "leave") {
+    await leaveGuild(me, gid);
+    return NextResponse.json({ guilds: await listUserGuilds(me) });
+  }
   if (action === "invite") {
     const code = await createInvite(gid);
     return NextResponse.json({ code });

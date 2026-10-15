@@ -4,6 +4,7 @@ const {
   shell,
   session,
   desktopCapturer,
+  ipcMain,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
@@ -80,6 +81,29 @@ function createWindow() {
     return { action: "allow" };
   });
 
+  // Screen sharing: show a picker so the user chooses a screen or window.
+  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+    desktopCapturer
+      .getSources({
+        types: ["screen", "window"],
+        thumbnailSize: { width: 320, height: 180 },
+      })
+      .then((sources) => {
+        if (win.isDestroyed()) return callback({});
+        const list = sources.map((s) => ({
+          id: s.id,
+          name: s.name,
+          thumbnail: s.thumbnail.toDataURL(),
+        }));
+        win.webContents.send("relay:pick-source", list);
+        ipcMain.once("relay:source-chosen", (_e, id) => {
+          const src = id ? sources.find((s) => s.id === id) : null;
+          callback(src ? { video: src, audio: "loopback" } : {});
+        });
+      })
+      .catch(() => callback({}));
+  });
+
   // Poll running processes and report the detected game to the web app.
   win.webContents.once("did-finish-load", () => detectGame(win));
   const gameTimer = setInterval(() => detectGame(win), 15000);
@@ -95,21 +119,6 @@ app.whenReady().then(() => {
   );
   session.defaultSession.setPermissionCheckHandler(
     (_wc, permission) => permission === "media"
-  );
-
-  // Screen sharing: answer getDisplayMedia() requests. Tries the OS picker
-  // where supported, otherwise auto-selects the primary screen.
-  session.defaultSession.setDisplayMediaRequestHandler(
-    (_request, callback) => {
-      desktopCapturer
-        .getSources({ types: ["screen", "window"] })
-        .then((sources) => {
-          if (sources.length) callback({ video: sources[0], audio: "loopback" });
-          else callback({});
-        })
-        .catch(() => callback({}));
-    },
-    { useSystemPicker: true }
   );
 
   createWindow();

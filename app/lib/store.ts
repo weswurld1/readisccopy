@@ -429,6 +429,13 @@ export async function joinGuild(handle: string, id: string): Promise<Guild | nul
   return g;
 }
 
+export async function leaveGuild(handle: string, id: string): Promise<void> {
+  await Promise.all([
+    kv.srem(K.guildMembers(id), handle),
+    kv.srem(K.userGuilds(handle), id),
+  ]);
+}
+
 export async function addGuildMessage(
   id: string,
   channel: string,

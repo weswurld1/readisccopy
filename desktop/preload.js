@@ -6,4 +6,12 @@ contextBridge.exposeInMainWorld("relay", {
   onActivity: (cb) => {
     ipcRenderer.on("relay:activity", (_event, game) => cb(game));
   },
+  // Screen-share source picker: main sends the available screens/windows,
+  // the app shows a chooser, and sends back the picked id (or null to cancel).
+  onPickSource: (cb) => {
+    ipcRenderer.on("relay:pick-source", (_event, sources) => cb(sources));
+  },
+  chooseSource: (id) => {
+    ipcRenderer.send("relay:source-chosen", id);
+  },
 });
