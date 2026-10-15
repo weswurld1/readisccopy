@@ -1,6 +1,6 @@
 {
   "name": "relay-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Relay desktop app (Electron) for Windows",
   "main": "main.js",
   "author": "weswurld1",
@@ -28,6 +28,14 @@
     "electronLanguages": [
       "en-US"
     ],
+    "artifactName": "Relay-Setup.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "weswurld1",
+        "repo": "readisccopy"
+      }
+    ],
     "win": {
       "target": [
         "nsis"
@@ -40,5 +48,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

@@ -35,6 +35,21 @@ archive contains symlinks Windows refuses to extract without Developer Mode — 
 no special privileges are required. `compression: "maximum"` +
 `electronLanguages: ["en-US"]` keep the installer small.
 
+## Auto-update
+The app uses `electron-updater` against GitHub Releases (`build.publish` →
+github weswurld1/readisccopy). On launch (packaged builds only) it checks the
+latest release, downloads a newer installer in the background, and installs it
+on quit. Users never re-download manually after this version.
+
+### Cutting a release (so auto-update works)
+1. Bump `version` in `package.json`.
+2. `npm run dist` → produces three files in `dist/`:
+   - `Relay-Setup.exe` (stable name via `artifactName`)
+   - `Relay-Setup.exe.blockmap`
+   - `latest.yml`  ← the update manifest electron-updater reads
+3. Create a GitHub release tagged `v<version>` and upload **all three**. The
+   update check fails silently if `latest.yml` or the blockmap is missing.
+
 ## Notes & caveats
 - **Windows SmartScreen:** unsigned apps show a "Windows protected your PC"
   warning. Users click **More info → Run anyway**. To remove it you need a code

@@ -5,6 +5,7 @@ const {
   session,
   desktopCapturer,
 } = require("electron");
+const { autoUpdater } = require("electron-updater");
 
 // The hosted Relay app this desktop shell loads.
 // Change this to YOUR Vercel URL (or set RELAY_URL in the environment).
@@ -67,6 +68,15 @@ app.whenReady().then(() => {
   );
 
   createWindow();
+
+  // Auto-update from GitHub Releases (packaged builds only). Downloads a newer
+  // release in the background and installs it on next quit.
+  if (app.isPackaged) {
+    autoUpdater.on("error", (err) => {
+      console.error("auto-update error:", err?.message || err);
+    });
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
