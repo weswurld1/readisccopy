@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { durable, storeEnv, ping } from "@/app/lib/store";
+import { blobToken, blobVarNames } from "@/app/lib/blob";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,9 +23,11 @@ export async function GET() {
     durable,
     redis, // { ok: true } means Redis is reachable and storage persists
     voice, // voice.enabled true means LiveKit audio is configured
-    uploads: !!process.env.BLOB_READ_WRITE_TOKEN, // image uploads (Vercel Blob)
+    uploads: !!blobToken(), // image uploads (Vercel Blob, any token var name)
     uploadsEnv: {
       BLOB_READ_WRITE_TOKEN: !!process.env.BLOB_READ_WRITE_TOKEN,
+      detectedTokenVar: !!blobToken(),
+      blobVarNames: blobVarNames(), // names only, no values
     },
     auth: !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, // Clerk sign-in
     realtime:
