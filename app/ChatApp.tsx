@@ -109,6 +109,129 @@ type Message = {
 };
 
 const EMOJI_PALETTE = ["👍", "❤️", "😂", "🎉", "😮", "😢", "🔥", "👀"];
+
+// ---- inline line-icons (currentColor, themeable) ----
+const ICON_PATHS: Record<string, ReactNode> = {
+  users: (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ),
+  volume: (
+    <>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </>
+  ),
+  login: (
+    <>
+      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+      <polyline points="10 17 15 12 10 7" />
+      <line x1="15" y1="12" x2="3" y2="12" />
+    </>
+  ),
+  smile: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+      <line x1="9" y1="9" x2="9.01" y2="9" />
+      <line x1="15" y1="9" x2="15.01" y2="9" />
+    </>
+  ),
+  pin: (
+    <>
+      <line x1="12" y1="17" x2="12" y2="22" />
+      <path d="M5 17h14l-1.65-9.9A2 2 0 0 0 15.38 5.4L8.62 5.4A2 2 0 0 0 6.65 7.1Z" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </>
+  ),
+  trash: (
+    <>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </>
+  ),
+  plus: (
+    <>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </>
+  ),
+  x: (
+    <>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </>
+  ),
+  gamepad: (
+    <>
+      <line x1="6" y1="12" x2="10" y2="12" />
+      <line x1="8" y1="10" x2="8" y2="14" />
+      <line x1="15" y1="13" x2="15.01" y2="13" />
+      <line x1="18" y1="11" x2="18.01" y2="11" />
+      <rect x="2" y="6" width="20" height="12" rx="4" />
+    </>
+  ),
+  message: (
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
+  ),
+  headphones: (
+    <>
+      <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+      <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+    </>
+  ),
+  crown: (
+    <path d="M2 6l4 4 6-7 6 7 4-4-2 13H4L2 6z" />
+  ),
+};
+function Icon({ name, size = 18 }: { name: string; size?: number }) {
+  return (
+    <svg
+      className="icon"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {ICON_PATHS[name]}
+    </svg>
+  );
+}
 type FriendState = { friends: string[]; incoming: string[]; outgoing: string[] };
 type Guild = { id: string; name: string; owner: string };
 type View =
@@ -907,7 +1030,7 @@ export default function ChatApp({
       : view.type === "dm"
         ? `@ ${view.id}`
         : view.type === "voice"
-          ? `🔊 ${activeGuild?.name ?? "Voice"}`
+          ? `${activeGuild?.name ?? "Voice"} — voice`
           : "Friends";
 
   const meFooter = (
@@ -923,9 +1046,19 @@ export default function ChatApp({
           </button>
         )}
       </div>
-      {myActivity && <div className="me-activity">🎮 Playing {myActivity}</div>}
+      {myActivity && (
+        <div className="me-activity">
+          <Icon name="gamepad" size={13} /> Playing {myActivity}
+        </div>
+      )}
       <button className="me-status" onClick={setStatusPrompt}>
-        {myStatus ? `💬 ${myStatus}` : "Set a custom status"}
+        {myStatus ? (
+          <>
+            <Icon name="message" size={12} /> {myStatus}
+          </>
+        ) : (
+          "Set a custom status"
+        )}
       </button>
       <div className="note small">
         {durable === null
@@ -935,7 +1068,7 @@ export default function ChatApp({
             : "In-memory mode (resets on cold starts)"}
       </div>
       <a className="download-link" href={DOWNLOAD_URL}>
-        ⬇ Get the Windows app
+        <Icon name="download" size={13} /> Get the Windows app
       </a>
     </div>
   );
@@ -968,14 +1101,14 @@ export default function ChatApp({
           title="Create a server"
           onClick={() => openDialog("create")}
         >
-          +
+          <Icon name="plus" />
         </button>
         <button
           className="rail-btn add"
           title="Join with an invite"
           onClick={() => openDialog("join")}
         >
-          ⇲
+          <Icon name="login" />
         </button>
       </div>
 
@@ -990,7 +1123,7 @@ export default function ChatApp({
                   onClick={() => setShowMembers((v) => !v)}
                   title="Toggle member list"
                 >
-                  👥
+                  <Icon name="users" size={16} />
                 </button>
                 <button className="invite-btn" onClick={makeInvite}>
                   Invite
@@ -1000,7 +1133,7 @@ export default function ChatApp({
                   onClick={leaveServer}
                   title="Leave server"
                 >
-                  ⎋
+                  <Icon name="logout" size={16} />
                 </button>
               </div>
             </div>
@@ -1013,7 +1146,7 @@ export default function ChatApp({
                     title="Add channel"
                     onClick={() => openDialog("addChannel")}
                   >
-                    +
+                    <Icon name="plus" size={15} />
                   </button>
                 )}
               </div>
@@ -1034,7 +1167,7 @@ export default function ChatApp({
                       title={`Delete #${c}`}
                       onClick={() => deleteChannel(c)}
                     >
-                      ×
+                      <Icon name="x" size={14} />
                     </button>
                   )}
                 </div>
@@ -1044,7 +1177,7 @@ export default function ChatApp({
                 className={`channel${view.type === "voice" ? " active" : ""}`}
                 onClick={() => setView({ type: "voice", gid: activeGid })}
               >
-                🔊 lounge
+                <Icon name="volume" size={15} /> lounge
                 {view.type === "voice" && participants.length > 0 && (
                   <span className="count">{participants.length}</span>
                 )}
@@ -1063,7 +1196,7 @@ export default function ChatApp({
                 className={`channel wide${view.type === "friends" ? " active" : ""}`}
                 onClick={() => setView({ type: "friends" })}
               >
-                👥 Friends
+                <Icon name="users" size={16} /> Friends
                 {friends.incoming.length > 0 && (
                   <span className="badge">{friends.incoming.length}</span>
                 )}
@@ -1095,13 +1228,13 @@ export default function ChatApp({
           {(view.type === "channel" || view.type === "dm") && (
             <div className="header-actions">
               <button title="Pinned messages" onClick={openPins}>
-                📌
+                <Icon name="pin" size={16} />
               </button>
               <button
                 title="Search messages"
                 onClick={() => setSearch({ q: "", results: null })}
               >
-                🔍
+                <Icon name="search" size={16} />
               </button>
             </div>
           )}
@@ -1277,10 +1410,10 @@ export default function ChatApp({
                               setReactFor(reactFor === m.id ? null : m.id)
                             }
                           >
-                            😊
+                            <Icon name="smile" size={15} />
                           </button>
                           <button title="Pin" onClick={() => pinMessage(m)}>
-                            📌
+                            <Icon name="pin" size={15} />
                           </button>
                           {mine && m.content && (
                             <button
@@ -1290,12 +1423,12 @@ export default function ChatApp({
                                 setEditDraft(m.content);
                               }}
                             >
-                              ✎
+                              <Icon name="edit" size={15} />
                             </button>
                           )}
                           {mine && (
                             <button title="Delete" onClick={() => deleteMsg(m)}>
-                              🗑
+                              <Icon name="trash" size={15} />
                             </button>
                           )}
                           {reactFor === m.id && (
@@ -1346,7 +1479,7 @@ export default function ChatApp({
                   disabled={sending}
                   onClick={() => fileRef.current?.click()}
                 >
-                  {sending ? "…" : "＋"}
+                  {sending ? "…" : <Icon name="plus" size={20} />}
                 </button>
                 <textarea
                   className="composer-input"
@@ -1398,15 +1531,22 @@ export default function ChatApp({
                   <span className="member-info">
                     <span className="member-name">
                       {u}
-                      {u === activeGuild?.owner ? " 👑" : ""}
+                      {u === activeGuild?.owner && (
+                        <>
+                          {" "}
+                          <Icon name="crown" size={12} />
+                        </>
+                      )}
                     </span>
                     {activities[u] ? (
                       <span className="member-activity">
-                        🎮 {activities[u]}
+                        <Icon name="gamepad" size={11} /> {activities[u]}
                       </span>
                     ) : (
                       statuses[u] && (
-                        <span className="member-activity">💬 {statuses[u]}</span>
+                        <span className="member-activity">
+                          <Icon name="message" size={11} /> {statuses[u]}
+                        </span>
                       )
                     )}
                   </span>
@@ -1463,7 +1603,7 @@ export default function ChatApp({
         <div className="modal-backdrop" onClick={() => setDialog(null)}>
           <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setDialog(null)}>
-              ✕
+              <Icon name="x" size={14} />
             </button>
             {dialog.kind === "invite" ? (
               <>
@@ -1533,7 +1673,7 @@ export default function ChatApp({
             onClick={(e) => e.stopPropagation()}
           >
             <button className="modal-close" onClick={() => chooseSource(null)}>
-              ✕
+              <Icon name="x" size={14} />
             </button>
             <h3>Share your screen</h3>
             <p className="muted">Pick a screen or window to share.</p>
@@ -1560,9 +1700,11 @@ export default function ChatApp({
             onClick={(e) => e.stopPropagation()}
           >
             <button className="modal-close" onClick={() => setPins(null)}>
-              ✕
+              <Icon name="x" size={14} />
             </button>
-            <h3>📌 Pinned messages</h3>
+            <h3>
+              <Icon name="pin" size={16} /> Pinned messages
+            </h3>
             {pins.length === 0 ? (
               <p className="muted">No pinned messages yet.</p>
             ) : (
@@ -1602,9 +1744,11 @@ export default function ChatApp({
             onClick={(e) => e.stopPropagation()}
           >
             <button className="modal-close" onClick={() => setSearch(null)}>
-              ✕
+              <Icon name="x" size={14} />
             </button>
-            <h3>🔍 Search this conversation</h3>
+            <h3>
+              <Icon name="search" size={16} /> Search this conversation
+            </h3>
             <form
               className="add-form"
               onSubmit={(e) => {
@@ -1669,7 +1813,7 @@ function ProfileCard(props: {
     <div className="modal-backdrop" onClick={props.onClose}>
       <div className="profile-card" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={props.onClose}>
-          ✕
+          <Icon name="x" size={14} />
         </button>
         <div className="profile-banner" />
         <div className="profile-body">
@@ -1681,8 +1825,16 @@ function ProfileCard(props: {
             <span className={`dot ${online ? "on" : "off"}`} />
             {online ? "Online" : "Offline"}
           </div>
-          {activity && <div className="profile-activity">🎮 Playing {activity}</div>}
-          {status && <div className="profile-status-text">💬 {status}</div>}
+          {activity && (
+            <div className="profile-activity">
+              <Icon name="gamepad" size={13} /> Playing {activity}
+            </div>
+          )}
+          {status && (
+            <div className="profile-status-text">
+              <Icon name="message" size={13} /> {status}
+            </div>
+          )}
 
           <div className="profile-actions">
             {relation === "self" && (
@@ -1838,11 +1990,15 @@ function FriendsPanel(props: {
                 {u}
               </button>
               <span className="muted">
-                {activities[u]
-                  ? `🎮 ${activities[u]}`
-                  : isOnline(u)
-                    ? "online"
-                    : "offline"}
+                {activities[u] ? (
+                  <>
+                    <Icon name="gamepad" size={11} /> {activities[u]}
+                  </>
+                ) : isOnline(u) ? (
+                  "online"
+                ) : (
+                  "offline"
+                )}
               </span>
               <button onClick={() => props.openDM(u)}>Message</button>
               <button
@@ -1874,7 +2030,8 @@ function VoicePanel(props: {
   return (
     <div className="panel">
       <div className="voice-banner">
-        🎧 Voice shell — the participant list is live, but there’s no audio yet.
+        <Icon name="headphones" size={14} /> Voice shell — the participant list
+        is live, but there’s no audio yet.
         Set LiveKit env vars to enable real audio in room{" "}
         <code>{props.room}</code>.
       </div>
