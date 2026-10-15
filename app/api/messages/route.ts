@@ -8,7 +8,8 @@ import {
   durable,
   type Message,
 } from "@/app/lib/store";
-import { clean, handle } from "@/app/lib/util";
+import { clean, handle, channelTopic } from "@/app/lib/util";
+import { publish } from "@/app/lib/pusher";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -55,5 +56,6 @@ export async function POST(req: NextRequest) {
   } else {
     await addChannelMessage(message);
   }
+  await publish(channelTopic(guild, channel), "new-message", message);
   return NextResponse.json({ message });
 }

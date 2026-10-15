@@ -8,3 +8,14 @@ export function clean(value: unknown, max: number, fallback = ""): string {
 export function handle(value: unknown): string {
   return clean(value, 32);
 }
+
+// Pusher channel names: safe chars only. Server and client must agree.
+function safe(s: string): string {
+  return s.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+export function channelTopic(guild: string, channel: string): string {
+  return `ch-${safe(guild || "global")}-${safe(channel)}`.slice(0, 160);
+}
+export function dmTopic(a: string, b: string): string {
+  return `dm-${[safe(a), safe(b)].sort().join("__")}`.slice(0, 160);
+}

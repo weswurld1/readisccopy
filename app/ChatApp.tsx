@@ -2,10 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Pusher from "pusher-js";
+import { channelTopic, dmTopic } from "./lib/util";
 
 const VoiceRoom = dynamic(() => import("./components/VoiceRoom"), {
   ssr: false,
 });
+
+const PUSHER_KEY = process.env.NEXT_PUBLIC_PUSHER_KEY;
+const PUSHER_CLUSTER = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+const pusherEnabled = !!PUSHER_KEY && !!PUSHER_CLUSTER;
 
 type Message = {
   id: string;
@@ -83,6 +89,7 @@ export default function ChatApp({
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastVoiceRoom = useRef("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const pusherRef = useRef<Pusher | null>(null);
 
   const activeGid =
     view.type === "channel" || view.type === "voice" ? view.gid : null;
@@ -225,9 +232,44 @@ export default function ChatApp({
   useEffect(() => {
     if (view.type !== "channel" && view.type !== "dm") return;
     pollMessages();
-    const id = setInterval(pollMessages, 1500);
+    // With Pusher, this is just a slow safety net; without it, it's the engine.
+    const id = setInterval(pollMessages, pusherEnabled ? 10000 : 1500);
     return () => clearInterval(id);
   }, [pollMessages, view.type]);
+
+  // ---- realtime: connect Pusher once, subscribe to the active topic ----
+  useEffect(() => {
+    if (!pusherEnabled) return;
+    const p = new Pusher(PUSHER_KEY as string, {
+      cluster: PUSHER_CLUSTER as string,
+    });
+    pusherRef.current = p;
+    return () => {
+      p.disconnect();
+      pusherRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const p = pusherRef.current;
+    if (!p) return;
+    let topic = "";
+    if (view.type === "channel") topic = channelTopic(view.gid, view.id);
+    else if (view.type === "dm") topic = dmTopic(identity, view.id);
+    else return;
+    const ch = p.subscribe(topic);
+    const onNew = (m: Message) => {
+      setMessages((prev) =>
+        prev.some((x) => x.id === m.id) ? prev : [...prev, m]
+      );
+      if (m.ts > sinceRef.current) sinceRef.current = m.ts;
+    };
+    ch.bind("new-message", onNew);
+    return () => {
+      ch.unbind("new-message", onNew);
+      p.unsubscribe(topic);
+    };
+  }, [view, identity]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
