@@ -595,18 +595,96 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      1100px 600px at 18% -10%,
+      rgba(91, 124, 250, 0.28),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 520px at 112% 112%,
+      rgba(138, 91, 250, 0.24),
+      transparent 55%
+    ),
+    linear-gradient(160deg, #16171c 0%, #0e0f12 100%);
+}
+.gate::before,
+.gate::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.45;
+  z-index: 0;
+  pointer-events: none;
+}
+.gate::before {
+  width: 360px;
+  height: 360px;
+  background: #5b7cfa;
+  top: -120px;
+  left: -70px;
+  animation: gateFloatA 15s ease-in-out infinite;
+}
+.gate::after {
+  width: 420px;
+  height: 420px;
+  background: #8a5bfa;
+  bottom: -150px;
+  right: -90px;
+  animation: gateFloatB 18s ease-in-out infinite;
+}
+@keyframes gateFloatA {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(40px, 34px);
+  }
+}
+@keyframes gateFloatB {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-34px, -44px);
+  }
+}
+.gate-hero {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+}
+.gate-hero .brand.big {
+  font-size: 34px;
+}
+.gate-hero .gate-sub {
+  text-align: center;
+  margin-bottom: 8px;
 }
 .gate-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 360px;
   background: var(--bg-sidebar);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 28px 24px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 .brand.big {
   font-size: 26px;
