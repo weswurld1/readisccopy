@@ -691,6 +691,149 @@ body {
   }
 }
 
+/* ---- mentions ---- */
+.md-mention {
+  background: rgba(91, 124, 250, 0.18);
+  color: #a9bbff;
+  border-radius: 4px;
+  padding: 0 3px;
+  font-weight: 500;
+}
+.md-mention.me {
+  background: rgba(240, 190, 70, 0.22);
+  color: #f0c04a;
+}
+
+/* ---- reactions ---- */
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2px 9px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.reaction.mine {
+  border-color: var(--accent);
+  background: rgba(91, 124, 250, 0.18);
+}
+.react-palette {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  display: flex;
+  gap: 2px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 5;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.react-palette button {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.react-palette button:hover {
+  background: var(--bg-hover);
+}
+
+/* ---- header actions ---- */
+.header {
+  justify-content: space-between;
+}
+.header-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.header-actions button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.header-actions button:hover {
+  background: var(--bg-hover);
+}
+
+/* ---- custom status ---- */
+.me-status {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  padding: 4px 0 0;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.me-status:hover {
+  color: var(--text);
+}
+.profile-status-text {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* ---- pins / search lists ---- */
+.pins-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.pin-item {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.pin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  gap: 10px;
+}
+.pin-head .ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .msg:hover {
   background: rgba(255, 255, 255, 0.02);
 }

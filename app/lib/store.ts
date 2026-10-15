@@ -8,6 +8,7 @@ export type Message = {
   ts: number;
   image?: string;
   edited?: boolean;
+  reactions?: Record<string, string[]>;
 };
 
 export type FriendState = {
@@ -209,6 +210,8 @@ const K = {
   invite: (code: string) => `relay:invite:${code}`,
   gchan: (id: string, c: string) => `relay:gchan:${id}:${c}`,
   activity: "relay:activity",
+  status: "relay:status",
+  pins: (topic: string) => `relay:pins:${topic}`,
 };
 
 // ---------- helpers ----------
@@ -290,6 +293,91 @@ async function deleteInList(
   const changed = next.length !== items.length;
   if (changed) await kv.replaceList(key, next);
   return changed;
+}
+
+async function reactInList(
+  key: string,
+  id: string,
+  emoji: string,
+  user: string
+): Promise<Message | null> {
+  const raw = await kv.lrange(key);
+  const items = raw.map(coerce).filter((m): m is Message => m !== null);
+  let updated: Message | null = null;
+  const next = items.map((m) => {
+    if (m.id !== id) return m;
+    const reactions: Record<string, string[]> = { ...(m.reactions || {}) };
+    const users = new Set(reactions[emoji] || []);
+    if (users.has(user)) users.delete(user);
+    else users.add(user);
+    if (users.size) reactions[emoji] = Array.from(users);
+    else delete reactions[emoji];
+    updated = { ...m, reactions };
+    return updated;
+  });
+  if (updated) await kv.replaceList(key, next);
+  return updated;
+}
+export function reactChannel(
+  guild: string,
+  channel: string,
+  id: string,
+  emoji: string,
+  user: string
+) {
+  const key = guild ? K.gchan(guild, channel) : K.channel(channel);
+  return reactInList(key, id, emoji, user);
+}
+export function reactDirect(
+  a: string,
+  b: string,
+  id: string,
+  emoji: string,
+  user: string
+) {
+  return reactInList(K.dm(a, b), id, emoji, user);
+}
+
+async function searchInList(key: string, q: string): Promise<Message[]> {
+  const raw = await kv.lrange(key);
+  const items = raw.map(coerce).filter((m): m is Message => m !== null);
+  const ql = q.toLowerCase();
+  return items
+    .filter((m) => m.content.toLowerCase().includes(ql))
+    .slice(-50)
+    .reverse();
+}
+export function searchChannel(guild: string, channel: string, q: string) {
+  const key = guild ? K.gchan(guild, channel) : K.channel(channel);
+  return searchInList(key, q);
+}
+export function searchDirect(a: string, b: string, q: string) {
+  return searchInList(K.dm(a, b), q);
+}
+
+// ---------- custom status ----------
+export async function setStatus(handle: string, text: string): Promise<void> {
+  if (!handle) return;
+  await kv.hset(K.status, handle, text || "");
+}
+export function getStatuses(): Promise<Record<string, string>> {
+  return kv.hgetall(K.status);
+}
+
+// ---------- pinned messages (per topic) ----------
+export async function addPin(topic: string, msg: Message): Promise<void> {
+  const existing = await getPins(topic);
+  if (existing.some((m) => m.id === msg.id)) return;
+  await kv.lpushTrim(K.pins(topic), msg, 50);
+}
+export async function removePin(topic: string, id: string): Promise<void> {
+  const items = await getPins(topic);
+  const next = items.filter((m) => m.id !== id);
+  if (next.length !== items.length) await kv.replaceList(K.pins(topic), next);
+}
+export async function getPins(topic: string): Promise<Message[]> {
+  const raw = await kv.lrange(K.pins(topic));
+  return raw.map(coerce).filter((m): m is Message => m !== null);
 }
 
 export function editChannelMessage(

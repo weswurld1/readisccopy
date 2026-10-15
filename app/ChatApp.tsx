@@ -30,9 +30,9 @@ function renderPlain(text: string, key: number): ReactNode {
     </Fragment>
   );
 }
-function renderInline(text: string): ReactNode[] {
+function renderInline(text: string, me: string): ReactNode[] {
   const token =
-    /(`[^`]+`|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*\n]+\*|_[^_\n]+_|https?:\/\/[^\s]+)/;
+    /(`[^`]+`|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*\n]+\*|_[^_\n]+_|https?:\/\/[^\s]+|@[a-zA-Z0-9_-]{1,32})/;
   const nodes: ReactNode[] = [];
   let rest = text;
   let k = 0;
@@ -51,13 +51,22 @@ function renderInline(text: string): ReactNode[] {
         </code>
       );
     else if (t.startsWith("**"))
-      nodes.push(<strong key={k++}>{renderInline(t.slice(2, -2))}</strong>);
+      nodes.push(<strong key={k++}>{renderInline(t.slice(2, -2), me)}</strong>);
     else if (t.startsWith("~~"))
-      nodes.push(<s key={k++}>{renderInline(t.slice(2, -2))}</s>);
+      nodes.push(<s key={k++}>{renderInline(t.slice(2, -2), me)}</s>);
     else if (t.startsWith("*"))
-      nodes.push(<em key={k++}>{renderInline(t.slice(1, -1))}</em>);
+      nodes.push(<em key={k++}>{renderInline(t.slice(1, -1), me)}</em>);
     else if (t.startsWith("_"))
-      nodes.push(<em key={k++}>{renderInline(t.slice(1, -1))}</em>);
+      nodes.push(<em key={k++}>{renderInline(t.slice(1, -1), me)}</em>);
+    else if (t.startsWith("@"))
+      nodes.push(
+        <span
+          key={k++}
+          className={`md-mention${t.slice(1) === me ? " me" : ""}`}
+        >
+          {t}
+        </span>
+      );
     else
       nodes.push(
         <a
@@ -74,7 +83,7 @@ function renderInline(text: string): ReactNode[] {
   }
   return nodes;
 }
-function renderMarkdown(text: string): ReactNode {
+function renderMarkdown(text: string, me = ""): ReactNode {
   const parts = text.split(/(```[\s\S]*?```)/g);
   return parts.map((part, i) =>
     part.length >= 6 && part.startsWith("```") && part.endsWith("```") ? (
@@ -82,7 +91,7 @@ function renderMarkdown(text: string): ReactNode {
         <code>{part.slice(3, -3).replace(/^\n/, "").replace(/\n$/, "")}</code>
       </pre>
     ) : (
-      <Fragment key={i}>{renderInline(part)}</Fragment>
+      <Fragment key={i}>{renderInline(part, me)}</Fragment>
     )
   );
 }
@@ -96,7 +105,10 @@ type Message = {
   ts: number;
   image?: string;
   edited?: boolean;
+  reactions?: Record<string, string[]>;
 };
+
+const EMOJI_PALETTE = ["👍", "❤️", "😂", "🎉", "😮", "😢", "🔥", "👀"];
 type FriendState = { friends: string[]; incoming: string[]; outgoing: string[] };
 type Guild = { id: string; name: string; owner: string };
 type View =
@@ -153,7 +165,15 @@ export default function ChatApp({
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [activities, setActivities] = useState<Record<string, string>>({});
   const [myActivity, setMyActivity] = useState("");
+  const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const [myStatus, setMyStatus] = useState("");
   const [profile, setProfile] = useState<string | null>(null);
+  const [reactFor, setReactFor] = useState<string | null>(null);
+  const [pins, setPins] = useState<Message[] | null>(null);
+  const [search, setSearch] = useState<{
+    q: string;
+    results: Message[] | null;
+  } | null>(null);
   const [sourcePick, setSourcePick] = useState<
     { id: string; name: string; thumbnail: string }[] | null
   >(null);
@@ -234,6 +254,7 @@ export default function ChatApp({
           me: identity,
           avatar: avatarUrl,
           activity: myActivity,
+          status: myStatus,
         }),
         cache: "no-store",
       });
@@ -243,15 +264,39 @@ export default function ChatApp({
         friends: FriendState | null;
         avatars: Record<string, string>;
         activities: Record<string, string>;
+        statuses: Record<string, string>;
         durable: boolean;
       };
       setOnline(data.online ?? []);
       if (data.friends) setFriends(data.friends);
       if (data.avatars) setAvatars(data.avatars);
       if (data.activities) setActivities(data.activities);
+      if (data.statuses) setStatuses(data.statuses);
       setDurable(data.durable);
     } catch {}
-  }, [identity, avatarUrl, myActivity]);
+  }, [identity, avatarUrl, myActivity, myStatus]);
+
+  // ask for notification permission once
+  useEffect(() => {
+    if (
+      typeof Notification !== "undefined" &&
+      Notification.permission === "default"
+    ) {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  function notify(m: Message) {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted")
+      return;
+    const mentioned = m.content.includes(`@${identity}`);
+    if (!mentioned && !document.hidden) return;
+    try {
+      new Notification(mentioned ? `${m.author} mentioned you` : m.author, {
+        body: m.content.slice(0, 140) || "sent an image",
+      });
+    } catch {}
+  }
 
   // desktop app (Electron) bridge: game detection + screen-share source picker
   useEffect(() => {
@@ -355,6 +400,7 @@ export default function ChatApp({
         prev.some((x) => x.id === m.id) ? prev : [...prev, m]
       );
       if (m.ts > sinceRef.current) sinceRef.current = m.ts;
+      if (m.author !== identity) notify(m);
     };
     const onUpdate = (m: Message) =>
       setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x)));
@@ -493,6 +539,129 @@ export default function ChatApp({
         });
       }
     } catch {}
+  }
+
+  async function toggleReaction(m: Message, emoji: string) {
+    setReactFor(null);
+    setMessages((prev) =>
+      prev.map((x) => {
+        if (x.id !== m.id) return x;
+        const reactions: Record<string, string[]> = { ...(x.reactions || {}) };
+        const users = new Set(reactions[emoji] || []);
+        if (users.has(identity)) users.delete(identity);
+        else users.add(identity);
+        if (users.size) reactions[emoji] = Array.from(users);
+        else delete reactions[emoji];
+        return { ...x, reactions };
+      })
+    );
+    try {
+      if (view.type === "channel") {
+        await fetch("/api/react", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: m.id,
+            emoji,
+            me: identity,
+            guild: view.gid,
+            channel: view.id,
+          }),
+        });
+      } else if (view.type === "dm") {
+        await fetch("/api/react", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: m.id, emoji, me: identity, peer: view.id }),
+        });
+      }
+    } catch {}
+  }
+
+  function setStatusPrompt() {
+    const v = window.prompt("Set a custom status (blank to clear):", myStatus);
+    if (v !== null) setMyStatus(v.slice(0, 80));
+  }
+
+  async function pinMessage(m: Message) {
+    try {
+      if (view.type === "channel") {
+        await fetch("/api/pins", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            me: identity,
+            guild: view.gid,
+            channel: view.id,
+            message: m,
+          }),
+        });
+      } else if (view.type === "dm") {
+        await fetch("/api/pins", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ me: identity, peer: view.id, message: m }),
+        });
+      }
+    } catch {}
+  }
+
+  async function openPins() {
+    let url = "";
+    if (view.type === "channel")
+      url = `/api/pins?me=${encodeURIComponent(identity)}&guild=${view.gid}&channel=${encodeURIComponent(view.id)}`;
+    else if (view.type === "dm")
+      url = `/api/pins?me=${encodeURIComponent(identity)}&peer=${encodeURIComponent(view.id)}`;
+    else return;
+    setPins([]);
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      const d = (await r.json()) as { pins: Message[] };
+      setPins(d.pins ?? []);
+    } catch {
+      setPins([]);
+    }
+  }
+
+  async function unpinMessage(id: string) {
+    try {
+      let body: Record<string, unknown> | null = null;
+      if (view.type === "channel")
+        body = {
+          me: identity,
+          guild: view.gid,
+          channel: view.id,
+          action: "unpin",
+          id,
+        };
+      else if (view.type === "dm")
+        body = { me: identity, peer: view.id, action: "unpin", id };
+      if (!body) return;
+      const r = await fetch("/api/pins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = (await r.json()) as { pins: Message[] };
+      setPins(d.pins ?? []);
+    } catch {}
+  }
+
+  async function runSearch(q: string) {
+    setSearch({ q, results: null });
+    let url = "";
+    if (view.type === "channel")
+      url = `/api/search?me=${encodeURIComponent(identity)}&guild=${view.gid}&channel=${encodeURIComponent(view.id)}&q=${encodeURIComponent(q)}`;
+    else if (view.type === "dm")
+      url = `/api/search?me=${encodeURIComponent(identity)}&peer=${encodeURIComponent(view.id)}&q=${encodeURIComponent(q)}`;
+    else return;
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      const d = (await r.json()) as { results: Message[] };
+      setSearch({ q, results: d.results ?? [] });
+    } catch {
+      setSearch({ q, results: [] });
+    }
   }
 
   async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -755,6 +924,9 @@ export default function ChatApp({
         )}
       </div>
       {myActivity && <div className="me-activity">🎮 Playing {myActivity}</div>}
+      <button className="me-status" onClick={setStatusPrompt}>
+        {myStatus ? `💬 ${myStatus}` : "Set a custom status"}
+      </button>
       <div className="note small">
         {durable === null
           ? "Connecting…"
@@ -918,7 +1090,22 @@ export default function ChatApp({
       </aside>
 
       <main className="main">
-        <header className="header">{header}</header>
+        <header className="header">
+          <span className="header-title">{header}</span>
+          {(view.type === "channel" || view.type === "dm") && (
+            <div className="header-actions">
+              <button title="Pinned messages" onClick={openPins}>
+                📌
+              </button>
+              <button
+                title="Search messages"
+                onClick={() => setSearch({ q: "", results: null })}
+              >
+                🔍
+              </button>
+            </div>
+          )}
+        </header>
 
         {view.type === "friends" ? (
           <FriendsPanel
@@ -1047,7 +1234,7 @@ export default function ChatApp({
                           <>
                             {m.content && (
                               <div className="msg-content">
-                                {renderMarkdown(m.content)}
+                                {renderMarkdown(m.content, identity)}
                                 {m.edited && (
                                   <span className="edited-tag"> (edited)</span>
                                 )}
@@ -1062,12 +1249,40 @@ export default function ChatApp({
                                 onClick={() => window.open(m.image, "_blank")}
                               />
                             )}
+                            {m.reactions &&
+                              Object.keys(m.reactions).length > 0 && (
+                                <div className="reactions">
+                                  {Object.entries(m.reactions).map(
+                                    ([e, users]) => (
+                                      <button
+                                        key={e}
+                                        className={`reaction${users.includes(identity) ? " mine" : ""}`}
+                                        onClick={() => toggleReaction(m, e)}
+                                        title={users.join(", ")}
+                                      >
+                                        {e} {users.length}
+                                      </button>
+                                    )
+                                  )}
+                                </div>
+                              )}
                           </>
                         )}
                       </div>
-                      {mine && editing !== m.id && (
+                      {editing !== m.id && (
                         <div className="msg-actions">
-                          {m.content && (
+                          <button
+                            title="React"
+                            onClick={() =>
+                              setReactFor(reactFor === m.id ? null : m.id)
+                            }
+                          >
+                            😊
+                          </button>
+                          <button title="Pin" onClick={() => pinMessage(m)}>
+                            📌
+                          </button>
+                          {mine && m.content && (
                             <button
                               title="Edit"
                               onClick={() => {
@@ -1078,9 +1293,23 @@ export default function ChatApp({
                               ✎
                             </button>
                           )}
-                          <button title="Delete" onClick={() => deleteMsg(m)}>
-                            🗑
-                          </button>
+                          {mine && (
+                            <button title="Delete" onClick={() => deleteMsg(m)}>
+                              🗑
+                            </button>
+                          )}
+                          {reactFor === m.id && (
+                            <div className="react-palette">
+                              {EMOJI_PALETTE.map((e) => (
+                                <button
+                                  key={e}
+                                  onClick={() => toggleReaction(m, e)}
+                                >
+                                  {e}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1171,10 +1400,14 @@ export default function ChatApp({
                       {u}
                       {u === activeGuild?.owner ? " 👑" : ""}
                     </span>
-                    {activities[u] && (
+                    {activities[u] ? (
                       <span className="member-activity">
                         🎮 {activities[u]}
                       </span>
+                    ) : (
+                      statuses[u] && (
+                        <span className="member-activity">💬 {statuses[u]}</span>
+                      )
                     )}
                   </span>
                 </button>
@@ -1205,6 +1438,7 @@ export default function ChatApp({
           avatarUrl={avatars[profile]}
           online={isOnline(profile)}
           activity={activities[profile]}
+          status={statuses[profile]}
           relation={
             profile === identity
               ? "self"
@@ -1319,6 +1553,101 @@ export default function ChatApp({
           </div>
         </div>
       )}
+      {pins && (
+        <div className="modal-backdrop" onClick={() => setPins(null)}>
+          <div
+            className="dialog-card source-picker"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="modal-close" onClick={() => setPins(null)}>
+              ✕
+            </button>
+            <h3>📌 Pinned messages</h3>
+            {pins.length === 0 ? (
+              <p className="muted">No pinned messages yet.</p>
+            ) : (
+              <div className="pins-list">
+                {pins.map((m) => (
+                  <div className="pin-item" key={m.id}>
+                    <div className="pin-head">
+                      <strong>{m.author}</strong>
+                      <button
+                        className="ghost"
+                        onClick={() => unpinMessage(m.id)}
+                      >
+                        Unpin
+                      </button>
+                    </div>
+                    {m.content && (
+                      <div className="msg-content">
+                        {renderMarkdown(m.content, identity)}
+                      </div>
+                    )}
+                    {m.image && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="msg-image" src={m.image} alt="" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {search && (
+        <div className="modal-backdrop" onClick={() => setSearch(null)}>
+          <div
+            className="dialog-card source-picker"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="modal-close" onClick={() => setSearch(null)}>
+              ✕
+            </button>
+            <h3>🔍 Search this conversation</h3>
+            <form
+              className="add-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (search.q.trim()) runSearch(search.q.trim());
+              }}
+            >
+              <input
+                autoFocus
+                value={search.q}
+                placeholder="Search messages…"
+                onChange={(e) =>
+                  setSearch({ q: e.target.value, results: search.results })
+                }
+              />
+              <button type="submit">Search</button>
+            </form>
+            {search.results === null ? null : search.results.length === 0 ? (
+              <p className="muted" style={{ marginTop: 12 }}>
+                No matches.
+              </p>
+            ) : (
+              <div className="pins-list">
+                {search.results.map((m) => (
+                  <div className="pin-item" key={m.id}>
+                    <div className="pin-head">
+                      <strong>{m.author}</strong>
+                      <span className="msg-time">
+                        {new Date(m.ts).toLocaleString()}
+                      </span>
+                    </div>
+                    {m.content && (
+                      <div className="msg-content">
+                        {renderMarkdown(m.content, identity)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1329,12 +1658,13 @@ function ProfileCard(props: {
   avatarUrl?: string;
   online: boolean;
   activity?: string;
+  status?: string;
   relation: "self" | "friend" | "incoming" | "outgoing" | "none";
   onClose: () => void;
   onMessage: () => void;
   onAction: (action: string) => void;
 }) {
-  const { handle, avatarUrl, online, activity, relation } = props;
+  const { handle, avatarUrl, online, activity, status, relation } = props;
   return (
     <div className="modal-backdrop" onClick={props.onClose}>
       <div className="profile-card" onClick={(e) => e.stopPropagation()}>
@@ -1352,6 +1682,7 @@ function ProfileCard(props: {
             {online ? "Online" : "Offline"}
           </div>
           {activity && <div className="profile-activity">🎮 Playing {activity}</div>}
+          {status && <div className="profile-status-text">💬 {status}</div>}
 
           <div className="profile-actions">
             {relation === "self" && (

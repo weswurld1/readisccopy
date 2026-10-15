@@ -8,6 +8,8 @@ import {
   getAvatars,
   setActivity,
   getActivities,
+  setStatus,
+  getStatuses,
   durable,
 } from "@/app/lib/store";
 import { clean, handle } from "@/app/lib/util";
@@ -26,16 +28,19 @@ export async function POST(req: NextRequest) {
   const me = handle(b.me);
   const avatar = clean(b.avatar, 2048);
   const activity = clean(b.activity, 60);
+  const status = clean(b.status, 80);
   if (!me) {
-    const [online, avatars, activities] = await Promise.all([
+    const [online, avatars, activities, statuses] = await Promise.all([
       onlineUsers(),
       getAvatars(),
       getActivities(),
+      getStatuses(),
     ]);
     return NextResponse.json({
       online,
       avatars,
       activities,
+      statuses,
       durable,
       friends: null,
     });
@@ -44,11 +49,20 @@ export async function POST(req: NextRequest) {
   await heartbeat(me);
   if (avatar) await setAvatar(me, avatar);
   if (b.activity !== undefined) await setActivity(me, activity);
-  const [online, friends, avatars, activities] = await Promise.all([
+  if (b.status !== undefined) await setStatus(me, status);
+  const [online, friends, avatars, activities, statuses] = await Promise.all([
     onlineUsers(),
     getFriendState(me),
     getAvatars(),
     getActivities(),
+    getStatuses(),
   ]);
-  return NextResponse.json({ online, friends, avatars, activities, durable });
+  return NextResponse.json({
+    online,
+    friends,
+    avatars,
+    activities,
+    statuses,
+    durable,
+  });
 }
