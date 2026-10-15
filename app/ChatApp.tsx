@@ -13,6 +13,7 @@ type Message = {
   content: string;
   channel: string;
   ts: number;
+  image?: string;
 };
 type FriendState = { friends: string[]; incoming: string[]; outgoing: string[] };
 type Guild = { id: string; name: string; owner: string };
@@ -74,6 +75,7 @@ export default function ChatApp({
   const sinceRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastVoiceRoom = useRef("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const activeGid =
     view.type === "channel" || view.type === "voice" ? view.gid : null;
@@ -188,6 +190,29 @@ export default function ChatApp({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  async function postMessage(content: string, image?: string) {
+    if (view.type === "channel") {
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content,
+          author: identity,
+          guild: view.gid,
+          channel: view.id,
+          image,
+        }),
+      });
+    } else if (view.type === "dm") {
+      await fetch("/api/dm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, me: identity, peer: view.id, image }),
+      });
+    }
+    await pollMessages();
+  }
+
   async function send(e: React.FormEvent) {
     e.preventDefault();
     const content = draft.trim();
@@ -195,25 +220,33 @@ export default function ChatApp({
     setSending(true);
     setDraft("");
     try {
-      if (view.type === "channel") {
-        await fetch("/api/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content,
-            author: identity,
-            guild: view.gid,
-            channel: view.id,
-          }),
-        });
-      } else if (view.type === "dm") {
-        await fetch("/api/dm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content, me: identity, peer: view.id }),
-        });
+      await postMessage(content);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || sending) return;
+    setSending(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(
+          d.error === "uploads not configured"
+            ? "Image uploads aren't enabled yet — add a Vercel Blob store."
+            : d.error || "Upload failed"
+        );
+        return;
       }
-      await pollMessages();
+      const { url } = (await res.json()) as { url: string };
+      await postMessage(draft.trim(), url);
+      setDraft("");
     } finally {
       setSending(false);
     }
@@ -630,21 +663,36 @@ export default function ChatApp({
                       onClick={() => setProfile(m.author)}
                       title={`View ${m.author}`}
                     >
-                      <Avatar handle={m.author} url={avatars[m.author]} size={22} />
+                      <Avatar handle={m.author} url={avatars[m.author]} size={38} />
                     </button>
-                    <button
-                      className="msg-author linklike"
-                      onClick={() => setProfile(m.author)}
-                    >
-                      {m.author}
-                    </button>
-                    <span className="msg-time">
-                      {new Date(m.ts).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                    <span className="msg-content">{m.content}</span>
+                    <div className="msg-main">
+                      <div className="msg-head">
+                        <button
+                          className="msg-author linklike"
+                          onClick={() => setProfile(m.author)}
+                        >
+                          {m.author}
+                        </button>
+                        <span className="msg-time">
+                          {new Date(m.ts).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      {m.content && (
+                        <div className="msg-content">{m.content}</div>
+                      )}
+                      {m.image && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          className="msg-image"
+                          src={m.image}
+                          alt="attachment"
+                          onClick={() => window.open(m.image, "_blank")}
+                        />
+                      )}
+                    </div>
                   </div>
                 ))
               )}
@@ -653,6 +701,22 @@ export default function ChatApp({
 
             <div className="composer">
               <form onSubmit={send}>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={onPickImage}
+                />
+                <button
+                  type="button"
+                  className="attach-btn"
+                  title="Send an image"
+                  disabled={sending}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {sending ? "…" : "＋"}
+                </button>
                 <input
                   value={draft}
                   placeholder={

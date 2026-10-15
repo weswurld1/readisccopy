@@ -22,6 +22,8 @@ export async function GET() {
     durable,
     redis, // { ok: true } means Redis is reachable and storage persists
     voice, // voice.enabled true means LiveKit audio is configured
+    uploads: !!process.env.BLOB_READ_WRITE_TOKEN, // image uploads (Vercel Blob)
+    auth: !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, // Clerk sign-in
     env: storeEnv(), // which Redis env vars are present (names only, no values)
     mode: durable ? "synced (redis)" : "in-memory (ephemeral)",
   });

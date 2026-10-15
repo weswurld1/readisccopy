@@ -31,10 +31,11 @@ export async function POST(req: NextRequest) {
   const me = handle(b.me);
   const peer = handle(b.peer);
   const content = clean(b.content, 2000);
+  const image = clean(b.image, 2048);
   if (!me || !peer) {
     return NextResponse.json({ error: "me and peer required" }, { status: 400 });
   }
-  if (!content) {
+  if (!content && !image) {
     return NextResponse.json({ error: "empty message" }, { status: 400 });
   }
   const message: Message = {
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
     content,
     channel: "dm",
     ts: Date.now(),
+    ...(image ? { image } : {}),
   };
   await addDirectMessage(me, peer, message);
   return NextResponse.json({ message });

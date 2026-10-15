@@ -6,6 +6,7 @@ export type Message = {
   content: string;
   channel: string;
   ts: number;
+  image?: string;
 };
 
 export type FriendState = {

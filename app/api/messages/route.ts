@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
   const author = handle(b.author) || "guest";
   const channel = clean(b.channel, 40, "general");
   const guild = clean(b.guild, 16);
-  if (!content) {
+  const image = clean(b.image, 2048);
+  if (!content && !image) {
     return NextResponse.json({ error: "empty message" }, { status: 400 });
   }
   const message: Message = {
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
     content,
     channel,
     ts: Date.now(),
+    ...(image ? { image } : {}),
   };
   if (guild) {
     if (!(await isGuildMember(guild, author))) {
