@@ -1,6 +1,6 @@
 {
   "name": "relay-desktop",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Relay desktop app (Electron) for Windows",
   "main": "main.js",
   "author": "weswurld1",
