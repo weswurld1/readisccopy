@@ -9,9 +9,8 @@ connect Redis, fully functional in-memory if you don't.
 - **Friends** — send requests, accept/decline, remove; reciprocal requests
   auto-accept.
 - **Presence** — live online/offline dots (30s heartbeat).
-- **Voice room (UI shell)** — a live participant list for a room, **no audio
-  yet**. Wired so a real media service (e.g. LiveKit) can be dropped onto the
-  same room id later.
+- **Voice chat** — real audio via LiveKit when configured (join, mute, live
+  participants); falls back to a presence-only room shell when it isn't.
 - **Lightweight identity** — claim a username (stored in `localStorage` +
   server presence). No passwords — a demo, not secure; any name is free to take.
 
@@ -51,6 +50,17 @@ Pick one path:
 4. Redeploy.
 
 For local durable testing, put the same vars in `.env.local`.
+
+### Enable voice chat (LiveKit)
+1. Create a free project at <https://cloud.livekit.io>.
+2. Copy the **WebSocket URL** (`wss://…`) and an **API key + secret**.
+3. Add these env vars in Vercel (and `.env.local` for local):
+   - `NEXT_PUBLIC_LIVEKIT_URL` (the `wss://…` URL — public)
+   - `LIVEKIT_API_KEY`
+   - `LIVEKIT_API_SECRET` (secret — server-only)
+4. Redeploy. The voice room switches from the shell to real audio.
+
+`/api/health` and `/api/voice/token` report whether these are detected.
 
 ## Run locally
 ```bash

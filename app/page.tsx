@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+
+const VoiceRoom = dynamic(() => import("./components/VoiceRoom"), {
+  ssr: false,
+});
 
 type Message = {
   id: string;
@@ -43,6 +48,7 @@ export default function Page() {
   const [inVoice, setInVoice] = useState(false);
   const [muted, setMuted] = useState(false);
   const [participants, setParticipants] = useState<string[]>([]);
+  const [live, setLive] = useState<{ url: string; token: string } | null>(null);
 
   const sinceRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -205,10 +211,10 @@ export default function Page() {
     setAddMsg(`Friend request sent to ${target}.`);
   }
 
-  // ---- voice shell ----
+  // ---- voice shell (presence-only; skipped when LiveKit audio is active) ----
   useEffect(() => {
     const active = view.type === "voice" || inVoice;
-    if (!active || !name) return;
+    if (!active || !name || live) return;
 
     const tick = async () => {
       try {
@@ -236,6 +242,25 @@ export default function Page() {
 
   async function joinVoice() {
     if (!name) return;
+    // Try real audio first; fall back to the presence-only shell.
+    try {
+      const res = await fetch(
+        `/api/voice/token?room=${VOICE_ROOM}&identity=${encodeURIComponent(name)}`,
+        { cache: "no-store" }
+      );
+      const data = (await res.json()) as {
+        enabled: boolean;
+        url?: string;
+        token?: string;
+      };
+      if (data.enabled && data.url && data.token) {
+        setLive({ url: data.url, token: data.token });
+        setInVoice(true);
+        return;
+      }
+    } catch {}
+    // shell fallback
+    setLive(null);
     setInVoice(true);
     await fetch("/api/voice", {
       method: "POST",
@@ -245,12 +270,16 @@ export default function Page() {
   }
   async function leaveVoice() {
     if (!name) return;
+    const wasLive = live !== null;
+    setLive(null);
     setInVoice(false);
-    await fetch("/api/voice", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ me: name, room: VOICE_ROOM, action: "leave" }),
-    });
+    if (!wasLive) {
+      await fetch("/api/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ me: name, room: VOICE_ROOM, action: "leave" }),
+      });
+    }
   }
 
   // leave voice on unload
@@ -396,16 +425,27 @@ export default function Page() {
             openDM={(f) => setView({ type: "dm", id: f })}
           />
         ) : view.type === "voice" ? (
-          <VoicePanel
-            room={view.id}
-            inVoice={inVoice}
-            muted={muted}
-            setMuted={setMuted}
-            participants={participants}
-            me={name}
-            join={joinVoice}
-            leave={leaveVoice}
-          />
+          live && inVoice ? (
+            <div className="panel">
+              <VoiceRoom
+                url={live.url}
+                token={live.token}
+                me={name}
+                onLeave={leaveVoice}
+              />
+            </div>
+          ) : (
+            <VoicePanel
+              room={view.id}
+              inVoice={inVoice}
+              muted={muted}
+              setMuted={setMuted}
+              participants={participants}
+              me={name}
+              join={joinVoice}
+              leave={leaveVoice}
+            />
+          )
         ) : (
           <>
             <div className="messages">

@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@upstash/redis": "^1.39.0",
+    "livekit-client": "^2.22.4",
+    "livekit-server-sdk": "^2.19.1",
     "next": "^14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1"
