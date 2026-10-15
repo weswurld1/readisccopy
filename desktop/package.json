@@ -21,8 +21,9 @@
     },
     "files": ["main.js", "package.json"],
     "win": {
-      "target": ["nsis", "portable"]
+      "target": ["zip"]
     },
+    "//nsis-note": "The 'nsis' installer target needs Windows Developer Mode ON (Settings > Privacy & security > For developers) so electron-builder can extract its winCodeSign helper, which contains symlinks. With that enabled, add 'nsis' to win.target. 'zip' needs no special privilege.",
     "nsis": {
       "oneClick": false,
       "perMachine": false,
