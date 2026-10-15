@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import dynamic from "next/dynamic";
 import Pusher from "pusher-js";
 import { channelTopic, dmTopic } from "./lib/util";
@@ -8,6 +15,77 @@ import { channelTopic, dmTopic } from "./lib/util";
 const VoiceRoom = dynamic(() => import("./components/VoiceRoom"), {
   ssr: false,
 });
+
+// ---- lightweight, XSS-safe markdown (bold/italic/strike/code/links) ----
+function renderPlain(text: string, key: number): ReactNode {
+  const lines = text.split("\n");
+  return (
+    <Fragment key={key}>
+      {lines.map((l, i) => (
+        <Fragment key={i}>
+          {i > 0 && <br />}
+          {l}
+        </Fragment>
+      ))}
+    </Fragment>
+  );
+}
+function renderInline(text: string): ReactNode[] {
+  const token =
+    /(`[^`]+`|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*\n]+\*|_[^_\n]+_|https?:\/\/[^\s]+)/;
+  const nodes: ReactNode[] = [];
+  let rest = text;
+  let k = 0;
+  while (rest.length) {
+    const m = token.exec(rest);
+    if (!m) {
+      nodes.push(renderPlain(rest, k++));
+      break;
+    }
+    if (m.index > 0) nodes.push(renderPlain(rest.slice(0, m.index), k++));
+    const t = m[0];
+    if (t.startsWith("`"))
+      nodes.push(
+        <code key={k++} className="md-code">
+          {t.slice(1, -1)}
+        </code>
+      );
+    else if (t.startsWith("**"))
+      nodes.push(<strong key={k++}>{renderInline(t.slice(2, -2))}</strong>);
+    else if (t.startsWith("~~"))
+      nodes.push(<s key={k++}>{renderInline(t.slice(2, -2))}</s>);
+    else if (t.startsWith("*"))
+      nodes.push(<em key={k++}>{renderInline(t.slice(1, -1))}</em>);
+    else if (t.startsWith("_"))
+      nodes.push(<em key={k++}>{renderInline(t.slice(1, -1))}</em>);
+    else
+      nodes.push(
+        <a
+          key={k++}
+          href={t}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="md-link"
+        >
+          {t}
+        </a>
+      );
+    rest = rest.slice(m.index + t.length);
+  }
+  return nodes;
+}
+function renderMarkdown(text: string): ReactNode {
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  return parts.map((part, i) =>
+    part.length >= 6 && part.startsWith("```") && part.endsWith("```") ? (
+      <pre key={i} className="md-codeblock">
+        <code>{part.slice(3, -3).replace(/^\n/, "").replace(/\n$/, "")}</code>
+      </pre>
+    ) : (
+      <Fragment key={i}>{renderInline(part)}</Fragment>
+    )
+  );
+}
 
 const PUSHER_KEY = process.env.NEXT_PUBLIC_PUSHER_KEY;
 const PUSHER_CLUSTER = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
@@ -20,6 +98,7 @@ type Message = {
   channel: string;
   ts: number;
   image?: string;
+  edited?: boolean;
 };
 type FriendState = { friends: string[]; incoming: string[]; outgoing: string[] };
 type Guild = { id: string; name: string; owner: string };
@@ -65,6 +144,11 @@ export default function ChatApp({
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [typing, setTyping] = useState<string[]>([]);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const typingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lastTypingSent = useRef(0);
 
   const [online, setOnline] = useState<string[]>([]);
   const [friends, setFriends] = useState<FriendState>(EMPTY_FRIENDS);
@@ -264,10 +348,30 @@ export default function ChatApp({
       );
       if (m.ts > sinceRef.current) sinceRef.current = m.ts;
     };
+    const onUpdate = (m: Message) =>
+      setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x)));
+    const onDelete = (d: { id: string }) =>
+      setMessages((prev) => prev.filter((x) => x.id !== d.id));
+    const onTyping = (d: { user: string }) => {
+      if (d.user === identity) return;
+      setTyping((prev) => (prev.includes(d.user) ? prev : [...prev, d.user]));
+      clearTimeout(typingTimers.current[d.user]);
+      typingTimers.current[d.user] = setTimeout(
+        () => setTyping((prev) => prev.filter((u) => u !== d.user)),
+        3500
+      );
+    };
     ch.bind("new-message", onNew);
+    ch.bind("update-message", onUpdate);
+    ch.bind("delete-message", onDelete);
+    ch.bind("typing", onTyping);
     return () => {
       ch.unbind("new-message", onNew);
+      ch.unbind("update-message", onUpdate);
+      ch.unbind("delete-message", onDelete);
+      ch.unbind("typing", onTyping);
       p.unsubscribe(topic);
+      setTyping([]);
     };
   }, [view, identity]);
 
@@ -298,7 +402,7 @@ export default function ChatApp({
     await pollMessages();
   }
 
-  async function send(e: React.FormEvent) {
+  async function send(e: React.SyntheticEvent) {
     e.preventDefault();
     const content = draft.trim();
     if (!content || sending) return;
@@ -309,6 +413,78 @@ export default function ChatApp({
     } finally {
       setSending(false);
     }
+  }
+
+  function sendTyping() {
+    if (!pusherEnabled) return;
+    const now = Date.now();
+    if (now - lastTypingSent.current < 2000) return;
+    lastTypingSent.current = now;
+    let body: Record<string, unknown> | null = null;
+    if (view.type === "channel")
+      body = { me: identity, guild: view.gid, channel: view.id };
+    else if (view.type === "dm") body = { me: identity, peer: view.id };
+    if (!body) return;
+    fetch("/api/typing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  }
+
+  async function saveEdit(m: Message) {
+    const content = editDraft.trim();
+    if (!content) return;
+    setEditing(null);
+    setMessages((prev) =>
+      prev.map((x) => (x.id === m.id ? { ...x, content, edited: true } : x))
+    );
+    try {
+      if (view.type === "channel") {
+        await fetch("/api/messages", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: m.id,
+            author: identity,
+            guild: view.gid,
+            channel: view.id,
+            content,
+          }),
+        });
+      } else if (view.type === "dm") {
+        await fetch("/api/dm", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: m.id, me: identity, peer: view.id, content }),
+        });
+      }
+    } catch {}
+  }
+
+  async function deleteMsg(m: Message) {
+    if (!window.confirm("Delete this message?")) return;
+    setMessages((prev) => prev.filter((x) => x.id !== m.id));
+    try {
+      if (view.type === "channel") {
+        await fetch("/api/messages", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: m.id,
+            author: identity,
+            guild: view.gid,
+            channel: view.id,
+          }),
+        });
+      } else if (view.type === "dm") {
+        await fetch("/api/dm", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: m.id, me: identity, peer: view.id }),
+        });
+      }
+    } catch {}
   }
 
   async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -793,50 +969,131 @@ export default function ChatApp({
                   )}
                 </div>
               ) : (
-                messages.map((m) => (
-                  <div className="msg" key={m.id}>
-                    <button
-                      className="avatar-btn"
-                      onClick={() => setProfile(m.author)}
-                      title={`View ${m.author}`}
-                    >
-                      <Avatar handle={m.author} url={avatars[m.author]} size={38} />
-                    </button>
-                    <div className="msg-main">
-                      <div className="msg-head">
+                messages.map((m, i) => {
+                  const prev = messages[i - 1];
+                  const grouped =
+                    !!prev &&
+                    prev.author === m.author &&
+                    m.ts - prev.ts < 300000;
+                  const mine = m.author === identity;
+                  const time = new Date(m.ts).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                  return (
+                    <div className={`msg${grouped ? " grouped" : ""}`} key={m.id}>
+                      {grouped ? (
+                        <span className="msg-gutter-time">{time}</span>
+                      ) : (
                         <button
-                          className="msg-author linklike"
+                          className="avatar-btn"
                           onClick={() => setProfile(m.author)}
+                          title={`View ${m.author}`}
                         >
-                          {m.author}
+                          <Avatar
+                            handle={m.author}
+                            url={avatars[m.author]}
+                            size={38}
+                          />
                         </button>
-                        <span className="msg-time">
-                          {new Date(m.ts).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                      {m.content && (
-                        <div className="msg-content">{m.content}</div>
                       )}
-                      {m.image && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          className="msg-image"
-                          src={m.image}
-                          alt="attachment"
-                          onClick={() => window.open(m.image, "_blank")}
-                        />
+                      <div className="msg-main">
+                        {!grouped && (
+                          <div className="msg-head">
+                            <button
+                              className="msg-author linklike"
+                              onClick={() => setProfile(m.author)}
+                            >
+                              {m.author}
+                            </button>
+                            <span className="msg-time">{time}</span>
+                          </div>
+                        )}
+                        {editing === m.id ? (
+                          <div className="edit-box">
+                            <textarea
+                              className="edit-input"
+                              value={editDraft}
+                              autoFocus
+                              onChange={(e) => setEditDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  saveEdit(m);
+                                } else if (e.key === "Escape") {
+                                  setEditing(null);
+                                }
+                              }}
+                            />
+                            <div className="edit-actions">
+                              <button onClick={() => saveEdit(m)}>Save</button>
+                              <button
+                                className="ghost"
+                                onClick={() => setEditing(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {m.content && (
+                              <div className="msg-content">
+                                {renderMarkdown(m.content)}
+                                {m.edited && (
+                                  <span className="edited-tag"> (edited)</span>
+                                )}
+                              </div>
+                            )}
+                            {m.image && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                className="msg-image"
+                                src={m.image}
+                                alt="attachment"
+                                onClick={() => window.open(m.image, "_blank")}
+                              />
+                            )}
+                          </>
+                        )}
+                      </div>
+                      {mine && editing !== m.id && (
+                        <div className="msg-actions">
+                          {m.content && (
+                            <button
+                              title="Edit"
+                              onClick={() => {
+                                setEditing(m.id);
+                                setEditDraft(m.content);
+                              }}
+                            >
+                              ✎
+                            </button>
+                          )}
+                          <button title="Delete" onClick={() => deleteMsg(m)}>
+                            🗑
+                          </button>
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
               <div ref={bottomRef} />
             </div>
 
             <div className="composer">
+              {typing.length > 0 && (
+                <div className="typing-row">
+                  <span className="typing-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  {typing.slice(0, 3).join(", ")}{" "}
+                  {typing.length === 1 ? "is" : "are"} typing…
+                </div>
+              )}
               <form onSubmit={send}>
                 <input
                   ref={fileRef}
@@ -854,15 +1111,29 @@ export default function ChatApp({
                 >
                   {sending ? "…" : "＋"}
                 </button>
-                <input
+                <textarea
+                  className="composer-input"
                   value={draft}
+                  rows={1}
                   placeholder={
                     view.type === "dm"
                       ? `Message @${view.id}`
                       : `Message #${view.id}`
                   }
                   maxLength={2000}
-                  onChange={(e) => setDraft(e.target.value)}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    e.target.style.height = "auto";
+                    e.target.style.height =
+                      Math.min(e.target.scrollHeight, 180) + "px";
+                    sendTyping();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send(e);
+                    }
+                  }}
                 />
                 <button type="submit" disabled={sending || !draft.trim()}>
                   Send
@@ -875,27 +1146,46 @@ export default function ChatApp({
 
       {activeGid && showMembers && (
         <aside className="members">
-          <div className="members-head">Members — {members.length}</div>
           <div className="members-list">
-            {members.map((u) => (
-              <button
-                className="member-row"
-                key={u}
-                onClick={() => setProfile(u)}
-              >
-                <span className={`dot ${isOnline(u) ? "on" : "off"}`} />
-                <Avatar handle={u} url={avatars[u]} size={28} />
-                <span className="member-info">
-                  <span className="member-name">
-                    {u}
-                    {u === activeGuild?.owner ? " 👑" : ""}
+            {(() => {
+              const onlineM = members.filter((u) => isOnline(u));
+              const offlineM = members.filter((u) => !isOnline(u));
+              const row = (u: string) => (
+                <button
+                  className="member-row"
+                  key={u}
+                  onClick={() => setProfile(u)}
+                >
+                  <span className={`dot ${isOnline(u) ? "on" : "off"}`} />
+                  <Avatar handle={u} url={avatars[u]} size={28} />
+                  <span className="member-info">
+                    <span className="member-name">
+                      {u}
+                      {u === activeGuild?.owner ? " 👑" : ""}
+                    </span>
+                    {activities[u] && (
+                      <span className="member-activity">
+                        🎮 {activities[u]}
+                      </span>
+                    )}
                   </span>
-                  {activities[u] && (
-                    <span className="member-activity">🎮 {activities[u]}</span>
+                </button>
+              );
+              return (
+                <>
+                  <div className="members-head">
+                    Online — {onlineM.length}
+                  </div>
+                  {onlineM.map(row)}
+                  {offlineM.length > 0 && (
+                    <div className="members-head">
+                      Offline — {offlineM.length}
+                    </div>
                   )}
-                </span>
-              </button>
-            ))}
+                  {offlineM.map(row)}
+                </>
+              );
+            })()}
           </div>
         </aside>
       )}

@@ -518,6 +518,179 @@ body {
   cursor: default;
 }
 
+/* ---- markdown ---- */
+.md-code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+.md-codeblock {
+  background: #0f1012;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 4px 0;
+  overflow-x: auto;
+}
+.md-codeblock code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+.md-link {
+  color: #5b9cff;
+  text-decoration: none;
+}
+.md-link:hover {
+  text-decoration: underline;
+}
+.edited-tag {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ---- message grouping + actions ---- */
+.msg {
+  position: relative;
+}
+.msg.grouped {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+.msg-gutter-time {
+  width: 38px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  opacity: 0;
+  align-self: center;
+}
+.msg.grouped:hover .msg-gutter-time {
+  opacity: 1;
+}
+.msg-actions {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  display: none;
+  gap: 2px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+}
+.msg:hover .msg-actions {
+  display: flex;
+}
+.msg-actions button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.msg-actions button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.edit-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.edit-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 38px;
+  outline: none;
+}
+.edit-input:focus {
+  border-color: var(--accent);
+}
+.edit-actions {
+  display: flex;
+  gap: 8px;
+}
+.edit-actions button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.edit-actions button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+/* ---- textarea composer + typing ---- */
+.composer form {
+  align-items: flex-end;
+}
+.composer-input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+  line-height: 1.4;
+  max-height: 180px;
+  padding: 2px 0;
+}
+.typing-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 4px 6px;
+}
+.typing-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.typing-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: typingBlink 1.2s infinite ease-in-out;
+}
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes typingBlink {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
 .msg:hover {
   background: rgba(255, 255, 255, 0.02);
 }

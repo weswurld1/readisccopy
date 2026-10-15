@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   addDirectMessage,
   getDirectMessages,
+  editDirectMessage,
+  deleteDirectMessage,
   type Message,
 } from "@/app/lib/store";
 import { clean, handle, dmTopic } from "@/app/lib/util";
@@ -50,4 +52,32 @@ export async function POST(req: NextRequest) {
   await addDirectMessage(me, peer, message);
   await publish(dmTopic(me, peer), "new-message", message);
   return NextResponse.json({ message });
+}
+
+export async function PATCH(req: NextRequest) {
+  const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const me = handle(b.me);
+  const peer = handle(b.peer);
+  const id = clean(b.id, 64);
+  const content = clean(b.content, 2000);
+  if (!me || !peer || !id || !content) {
+    return NextResponse.json({ error: "me, peer, id, content" }, { status: 400 });
+  }
+  const updated = await editDirectMessage(me, peer, id, me, content);
+  if (!updated) return NextResponse.json({ error: "not found" }, { status: 404 });
+  await publish(dmTopic(me, peer), "update-message", updated);
+  return NextResponse.json({ message: updated });
+}
+
+export async function DELETE(req: NextRequest) {
+  const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const me = handle(b.me);
+  const peer = handle(b.peer);
+  const id = clean(b.id, 64);
+  if (!me || !peer || !id) {
+    return NextResponse.json({ error: "me, peer, id" }, { status: 400 });
+  }
+  const ok = await deleteDirectMessage(me, peer, id, me);
+  if (ok) await publish(dmTopic(me, peer), "delete-message", { id });
+  return NextResponse.json({ ok });
 }

@@ -4,6 +4,8 @@ import {
   getChannelMessages,
   addGuildMessage,
   getGuildMessages,
+  editChannelMessage,
+  deleteChannelMessage,
   isGuildMember,
   durable,
   type Message,
@@ -58,4 +60,34 @@ export async function POST(req: NextRequest) {
   }
   await publish(channelTopic(guild, channel), "new-message", message);
   return NextResponse.json({ message });
+}
+
+export async function PATCH(req: NextRequest) {
+  const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const id = clean(b.id, 64);
+  const author = handle(b.author);
+  const channel = clean(b.channel, 40, "general");
+  const guild = clean(b.guild, 16);
+  const content = clean(b.content, 2000);
+  if (!id || !author || !content) {
+    return NextResponse.json({ error: "id, author, content" }, { status: 400 });
+  }
+  const updated = await editChannelMessage(guild, channel, id, author, content);
+  if (!updated) return NextResponse.json({ error: "not found" }, { status: 404 });
+  await publish(channelTopic(guild, channel), "update-message", updated);
+  return NextResponse.json({ message: updated });
+}
+
+export async function DELETE(req: NextRequest) {
+  const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const id = clean(b.id, 64);
+  const author = handle(b.author);
+  const channel = clean(b.channel, 40, "general");
+  const guild = clean(b.guild, 16);
+  if (!id || !author) {
+    return NextResponse.json({ error: "id, author" }, { status: 400 });
+  }
+  const ok = await deleteChannelMessage(guild, channel, id, author);
+  if (ok) await publish(channelTopic(guild, channel), "delete-message", { id });
+  return NextResponse.json({ ok });
 }

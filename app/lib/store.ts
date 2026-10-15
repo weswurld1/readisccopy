@@ -7,6 +7,7 @@ export type Message = {
   channel: string;
   ts: number;
   image?: string;
+  edited?: boolean;
 };
 
 export type FriendState = {
@@ -71,6 +72,7 @@ interface KV {
   zPruneBelow(key: string, maxScore: number): Promise<void>;
   hset(key: string, field: string, value: string): Promise<void>;
   hgetall(key: string): Promise<Record<string, string>>;
+  replaceList(key: string, items: unknown[]): Promise<void>;
 }
 
 const redisKV: KV = {
@@ -112,6 +114,10 @@ const redisKV: KV = {
   },
   async hgetall(key) {
     return ((await redis!.hgetall(key)) as Record<string, string>) ?? {};
+  },
+  async replaceList(key, items) {
+    await redis!.del(key);
+    if (items.length) await redis!.rpush(key, ...(items as never[]));
   },
 };
 
@@ -176,6 +182,9 @@ const memKV: KV = {
   },
   async hgetall(key) {
     return mem.hashes[key] ?? {};
+  },
+  async replaceList(key, items) {
+    mem.lists[key] = [...items];
   },
 };
 
@@ -248,6 +257,71 @@ export async function addDirectMessage(
 
 export function getDirectMessages(me: string, peer: string, since: number) {
   return readMessages(K.dm(me, peer), since);
+}
+
+async function editInList(
+  key: string,
+  id: string,
+  author: string,
+  content: string
+): Promise<Message | null> {
+  const raw = await kv.lrange(key);
+  const items = raw.map(coerce).filter((m): m is Message => m !== null);
+  let updated: Message | null = null;
+  const next = items.map((m) => {
+    if (m.id === id && m.author === author) {
+      updated = { ...m, content, edited: true };
+      return updated;
+    }
+    return m;
+  });
+  if (updated) await kv.replaceList(key, next);
+  return updated;
+}
+
+async function deleteInList(
+  key: string,
+  id: string,
+  author: string
+): Promise<boolean> {
+  const raw = await kv.lrange(key);
+  const items = raw.map(coerce).filter((m): m is Message => m !== null);
+  const next = items.filter((m) => !(m.id === id && m.author === author));
+  const changed = next.length !== items.length;
+  if (changed) await kv.replaceList(key, next);
+  return changed;
+}
+
+export function editChannelMessage(
+  guild: string,
+  channel: string,
+  id: string,
+  author: string,
+  content: string
+) {
+  const key = guild ? K.gchan(guild, channel) : K.channel(channel);
+  return editInList(key, id, author, content);
+}
+export function deleteChannelMessage(
+  guild: string,
+  channel: string,
+  id: string,
+  author: string
+) {
+  const key = guild ? K.gchan(guild, channel) : K.channel(channel);
+  return deleteInList(key, id, author);
+}
+export function editDirectMessage(
+  a: string,
+  b: string,
+  id: string,
+  author: string,
+  content: string
+) {
+  return editInList(K.dm(a, b), id, author, content);
+}
+export function deleteDirectMessage(a: string, b: string, id: string, author: string) {
+  return deleteInList(K.dm(a, b), id, author);
 }
 
 // ---------- public API: identity & presence ----------
