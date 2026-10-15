@@ -23,6 +23,8 @@ type View =
 
 const CHANNELS = ["general", "random", "dev"];
 const VOICE_ROOM = "lounge";
+const DOWNLOAD_URL =
+  "https://github.com/weswurld1/readisccopy/releases/latest/download/Relay-win-x64.zip";
 const EMPTY_FRIENDS: FriendState = { friends: [], incoming: [], outgoing: [] };
 
 function randomName() {
@@ -315,9 +317,13 @@ export default function Page() {
             onChange={(e) => setNameDraft(e.target.value)}
           />
           <button type="submit">Enter</button>
+          <a className="download-btn" href={DOWNLOAD_URL}>
+            ⬇ Download for Windows
+          </a>
           <p className="gate-note">
             Name-based identity (no password) — a demo, not secure. Anyone can
-            use any free name.
+            use any free name. The desktop download is a .zip — extract and run
+            Relay.exe.
           </p>
         </form>
       </div>
@@ -406,6 +412,9 @@ export default function Page() {
                 ? "Synced across everyone"
                 : "In-memory mode (resets on cold starts)"}
           </div>
+          <a className="download-link" href={DOWNLOAD_URL}>
+            ⬇ Get the Windows app
+          </a>
         </div>
       </aside>
 
