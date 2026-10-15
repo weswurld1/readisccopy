@@ -1,12 +1,30 @@
 # Relay
 
-A minimal chat app built with Next.js (App Router) — **no database**. Deploys to
-Vercel with zero configuration.
+A chat app built with Next.js (App Router). Deploys to Vercel; durable when you
+connect Redis, fully functional in-memory if you don't.
+
+## Features
+- **Text channels** — `#general`, `#random`, `#dev`.
+- **Direct messages** — private 1:1 threads between friends.
+- **Friends** — send requests, accept/decline, remove; reciprocal requests
+  auto-accept.
+- **Presence** — live online/offline dots (30s heartbeat).
+- **Voice room (UI shell)** — a live participant list for a room, **no audio
+  yet**. Wired so a real media service (e.g. LiveKit) can be dropped onto the
+  same room id later.
+- **Lightweight identity** — claim a username (stored in `localStorage` +
+  server presence). No passwords — a demo, not secure; any name is free to take.
 
 ## How it works
-- UI polls `GET /api/messages?channel=…&since=…` every 1.5s for new messages.
-- `POST /api/messages` appends a message to an in-memory store.
-- Your display name is kept in `localStorage` (per-browser convenience only).
+- `POST /api/sync` — heartbeat + returns online users and your friend state
+  (client polls every 3s).
+- `GET|POST /api/messages` — channel messages (client polls every 1.5s).
+- `GET|POST /api/dm` — direct messages between `me` and `peer`.
+- `POST /api/friends` — `request` / `accept` / `decline` / `remove`.
+- `GET|POST /api/voice` — join/leave/ping a voice room; returns participants.
+
+All server state lives behind [`app/lib/store.ts`](app/lib/store.ts), which uses
+Redis when configured and an in-memory fallback otherwise.
 
 ## Storage
 Storage auto-selects in [`app/api/messages/store.ts`](app/api/messages/store.ts):
