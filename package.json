@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.39.7",
     "@upstash/redis": "^1.39.0",
     "livekit-client": "^2.22.4",
     "livekit-server-sdk": "^2.19.1",

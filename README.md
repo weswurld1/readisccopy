@@ -11,8 +11,8 @@ connect Redis, fully functional in-memory if you don't.
 - **Presence** — live online/offline dots (30s heartbeat).
 - **Voice chat** — real audio via LiveKit when configured (join, mute, live
   participants); falls back to a presence-only room shell when it isn't.
-- **Lightweight identity** — claim a username (stored in `localStorage` +
-  server presence). No passwords — a demo, not secure; any name is free to take.
+- **Accounts** — real sign-in via Clerk when configured (API routes are
+  protected); falls back to a name-based username gate when it isn't.
 
 ## How it works
 - `POST /api/sync` — heartbeat + returns online users and your friend state
@@ -61,6 +61,23 @@ For local durable testing, put the same vars in `.env.local`.
 4. Redeploy. The voice room switches from the shell to real audio.
 
 `/api/health` and `/api/voice/token` report whether these are detected.
+
+### Enable real accounts (Clerk)
+1. Create an app at <https://dashboard.clerk.com> and open **API Keys**.
+2. Add in Vercel (and `.env.local` locally):
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (`pk_...`)
+   - `CLERK_SECRET_KEY` (`sk_...`)
+3. Redeploy. The app now requires sign-in, and `middleware.ts` protects every
+   API route except `/api/health`.
+
+Identity (your Relay handle) is your Clerk **username**; if you don't enable
+usernames in Clerk, it falls back to your email's local part. To use usernames,
+turn them on in Clerk → **User & Authentication → Username**.
+
+Note: with Clerk on, only signed-in users can call the API. The handle is still
+taken from the client, so this isn't hardened against a signed-in user spoofing
+another's handle — a future step is deriving the handle from the session
+server-side.
 
 ## Run locally
 ```bash
