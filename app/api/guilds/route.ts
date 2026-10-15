@@ -5,6 +5,8 @@ import {
   getGuild,
   getGuildChannels,
   addGuildChannel,
+  removeGuildChannel,
+  getGuildMembers,
   isGuildMember,
   createInvite,
   resolveInvite,
@@ -22,12 +24,13 @@ export async function GET(req: NextRequest) {
   if (!me) return NextResponse.json({ error: "me required" }, { status: 400 });
 
   if (gid) {
-    const [guild, channels, member] = await Promise.all([
+    const [guild, channels, member, members] = await Promise.all([
       getGuild(gid),
       getGuildChannels(gid),
       isGuildMember(gid, me),
+      getGuildMembers(gid),
     ]);
-    return NextResponse.json({ guild, channels, member });
+    return NextResponse.json({ guild, channels, member, members });
   }
   const guilds = await listUserGuilds(me);
   return NextResponse.json({ guilds });
@@ -75,13 +78,30 @@ export async function POST(req: NextRequest) {
     const code = await createInvite(gid);
     return NextResponse.json({ code });
   }
-  if (action === "addChannel") {
+  if (action === "addChannel" || action === "deleteChannel") {
+    const guild = await getGuild(gid);
+    if (!guild || guild.owner !== me) {
+      return NextResponse.json(
+        { error: "only the owner can manage channels" },
+        { status: 403 }
+      );
+    }
     const name = clean(b.name, 40)
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, "-")
       .replace(/^-+|-+$/g, "");
     if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
-    await addGuildChannel(gid, name);
+    if (action === "deleteChannel") {
+      if (name === "general") {
+        return NextResponse.json(
+          { error: "cannot delete #general" },
+          { status: 400 }
+        );
+      }
+      await removeGuildChannel(gid, name);
+    } else {
+      await addGuildChannel(gid, name);
+    }
     return NextResponse.json({ channels: await getGuildChannels(gid) });
   }
 

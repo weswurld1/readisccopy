@@ -404,6 +404,14 @@ export async function addGuildChannel(id: string, name: string): Promise<void> {
   await kv.sadd(K.guildChannels(id), name);
 }
 
+export async function removeGuildChannel(id: string, name: string): Promise<void> {
+  await kv.srem(K.guildChannels(id), name);
+}
+
+export function getGuildMembers(id: string): Promise<string[]> {
+  return kv.smembers(K.guildMembers(id));
+}
+
 export function isGuildMember(id: string, handle: string): Promise<boolean> {
   return kv.shas(K.guildMembers(id), handle);
 }

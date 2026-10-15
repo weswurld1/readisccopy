@@ -50,6 +50,8 @@ export default function ChatApp({
 
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [channels, setChannels] = useState<string[]>(["general"]);
+  const [members, setMembers] = useState<string[]>([]);
+  const [showMembers, setShowMembers] = useState(true);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [dialogInput, setDialogInput] = useState("");
   const [dialogError, setDialogError] = useState("");
@@ -118,11 +120,17 @@ export default function ChatApp({
           `/api/guilds?me=${encodeURIComponent(identity)}&gid=${activeGid}`,
           { cache: "no-store" }
         );
-        const data = (await res.json()) as { channels?: string[] };
+        const data = (await res.json()) as {
+          channels?: string[];
+          members?: string[];
+        };
         setChannels(data.channels ?? ["general"]);
+        setMembers(data.members ?? []);
       } catch {}
     })();
   }, [activeGid, identity]);
+
+  const isOwner = !!activeGuild && activeGuild.owner === identity;
 
   // ---- sync loop: presence + friends ----
   const sync = useCallback(async () => {
@@ -475,6 +483,21 @@ export default function ChatApp({
     setDialogError("");
     setDialog({ kind });
   }
+  async function deleteChannel(name: string) {
+    if (!activeGid) return;
+    if (!window.confirm(`Delete #${name}?`)) return;
+    const data = await guildPost({
+      action: "deleteChannel",
+      gid: activeGid,
+      name,
+    });
+    if (data.channels) {
+      setChannels(data.channels);
+      if (view.type === "channel" && view.id === name) {
+        setView({ type: "channel", gid: activeGid, id: "general" });
+      }
+    }
+  }
   async function leaveServer() {
     if (!activeGid) return;
     if (!window.confirm(`Leave ${activeGuild?.name ?? "this server"}?`)) return;
@@ -564,6 +587,13 @@ export default function ChatApp({
             <div className="brand guild-brand">
               <span className="guild-name">{activeGuild?.name ?? "Server"}</span>
               <div className="guild-actions">
+                <button
+                  className="leave-btn"
+                  onClick={() => setShowMembers((v) => !v)}
+                  title="Toggle member list"
+                >
+                  👥
+                </button>
                 <button className="invite-btn" onClick={makeInvite}>
                   Invite
                 </button>
@@ -579,25 +609,37 @@ export default function ChatApp({
             <nav className="channels">
               <div className="channels-label">
                 Text Channels
-                <button
-                  className="mini-add"
-                  title="Add channel"
-                  onClick={() => openDialog("addChannel")}
-                >
-                  +
-                </button>
+                {isOwner && (
+                  <button
+                    className="mini-add"
+                    title="Add channel"
+                    onClick={() => openDialog("addChannel")}
+                  >
+                    +
+                  </button>
+                )}
               </div>
               {channels.map((c) => (
-                <button
-                  key={c}
-                  className={`channel${view.type === "channel" && view.id === c ? " active" : ""}`}
-                  onClick={() =>
-                    setView({ type: "channel", gid: activeGid, id: c })
-                  }
-                >
-                  <span className="hash">#</span>
-                  {c}
-                </button>
+                <div className="channel-row" key={c}>
+                  <button
+                    className={`channel${view.type === "channel" && view.id === c ? " active" : ""}`}
+                    onClick={() =>
+                      setView({ type: "channel", gid: activeGid, id: c })
+                    }
+                  >
+                    <span className="hash">#</span>
+                    {c}
+                  </button>
+                  {isOwner && c !== "general" && (
+                    <button
+                      className="chan-del"
+                      title={`Delete #${c}`}
+                      onClick={() => deleteChannel(c)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               ))}
               <div className="channels-label">Voice</div>
               <button
@@ -788,6 +830,33 @@ export default function ChatApp({
           </>
         )}
       </main>
+
+      {activeGid && showMembers && (
+        <aside className="members">
+          <div className="members-head">Members — {members.length}</div>
+          <div className="members-list">
+            {members.map((u) => (
+              <button
+                className="member-row"
+                key={u}
+                onClick={() => setProfile(u)}
+              >
+                <span className={`dot ${isOnline(u) ? "on" : "off"}`} />
+                <Avatar handle={u} url={avatars[u]} size={28} />
+                <span className="member-info">
+                  <span className="member-name">
+                    {u}
+                    {u === activeGuild?.owner ? " 👑" : ""}
+                  </span>
+                  {activities[u] && (
+                    <span className="member-activity">🎮 {activities[u]}</span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+        </aside>
+      )}
 
       {profile && (
         <ProfileCard
