@@ -38,6 +38,7 @@ function SignedInApp() {
   return (
     <ChatApp
       identity={identity}
+      avatarUrl={user?.imageUrl}
       accountControl={<UserButton />}
     />
   );

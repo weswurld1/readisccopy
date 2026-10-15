@@ -32,11 +32,13 @@ export default function ChatApp({
   onSwitch,
   switchLabel,
   accountControl,
+  avatarUrl,
 }: {
   identity: string;
   onSwitch?: () => void;
   switchLabel?: string;
   accountControl?: React.ReactNode;
+  avatarUrl?: string;
 }) {
   const [view, setView] = useState<View>({ type: "channel", id: "general" });
 
@@ -47,6 +49,7 @@ export default function ChatApp({
   const [online, setOnline] = useState<string[]>([]);
   const [friends, setFriends] = useState<FriendState>(EMPTY_FRIENDS);
   const [durable, setDurable] = useState<boolean | null>(null);
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
 
   const [addInput, setAddInput] = useState("");
   const [addMsg, setAddMsg] = useState("");
@@ -68,20 +71,22 @@ export default function ChatApp({
       const res = await fetch("/api/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ me: identity }),
+        body: JSON.stringify({ me: identity, avatar: avatarUrl }),
         cache: "no-store",
       });
       if (!res.ok) return;
       const data = (await res.json()) as {
         online: string[];
         friends: FriendState | null;
+        avatars: Record<string, string>;
         durable: boolean;
       };
       setOnline(data.online ?? []);
       if (data.friends) setFriends(data.friends);
+      if (data.avatars) setAvatars(data.avatars);
       setDurable(data.durable);
     } catch {}
-  }, [identity]);
+  }, [identity, avatarUrl]);
 
   useEffect(() => {
     sync();
@@ -341,6 +346,7 @@ export default function ChatApp({
               onClick={() => setView({ type: "dm", id: f })}
             >
               <span className={`dot ${isOnline(f) ? "on" : "off"}`} />
+              <Avatar handle={f} url={avatars[f]} size={20} />
               {f}
             </button>
           ))}
@@ -379,6 +385,7 @@ export default function ChatApp({
             identity={identity}
             friends={friends}
             isOnline={isOnline}
+            avatars={avatars}
             addInput={addInput}
             setAddInput={setAddInput}
             addFriend={addFriend}
@@ -393,6 +400,7 @@ export default function ChatApp({
                 url={live.url}
                 token={live.token}
                 me={identity}
+                avatars={avatars}
                 onLeave={leaveVoice}
               />
             </div>
@@ -404,6 +412,7 @@ export default function ChatApp({
               setMuted={setMuted}
               participants={participants}
               me={identity}
+              avatars={avatars}
               join={joinVoice}
               leave={leaveVoice}
             />
@@ -427,6 +436,7 @@ export default function ChatApp({
               ) : (
                 messages.map((m) => (
                   <div className="msg" key={m.id}>
+                    <Avatar handle={m.author} url={avatars[m.author]} size={22} />
                     <span className="msg-author">{m.author}</span>
                     <span className="msg-time">
                       {new Date(m.ts).toLocaleTimeString([], {
@@ -465,10 +475,32 @@ export default function ChatApp({
   );
 }
 
+function Avatar({
+  handle,
+  url,
+  size = 24,
+}: {
+  handle: string;
+  url?: string;
+  size?: number;
+}) {
+  const style = { width: size, height: size } as React.CSSProperties;
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img className="avatar-img" style={style} src={url} alt={handle} />;
+  }
+  return (
+    <div className="avatar-initials" style={style}>
+      {handle.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
 function FriendsPanel(props: {
   identity: string;
   friends: FriendState;
   isOnline: (u: string) => boolean;
+  avatars: Record<string, string>;
   addInput: string;
   setAddInput: (v: string) => void;
   addFriend: (e: React.FormEvent) => void;
@@ -476,7 +508,7 @@ function FriendsPanel(props: {
   friendAction: (action: string, target: string) => void;
   openDM: (f: string) => void;
 }) {
-  const { friends, isOnline } = props;
+  const { friends, isOnline, avatars } = props;
   return (
     <div className="panel">
       <section className="card">
@@ -499,6 +531,7 @@ function FriendsPanel(props: {
           {friends.incoming.map((u) => (
             <div className="frow" key={u}>
               <span className={`dot ${isOnline(u) ? "on" : "off"}`} />
+              <Avatar handle={u} url={avatars[u]} size={28} />
               <span className="fname">{u}</span>
               <button onClick={() => props.friendAction("accept", u)}>
                 Accept
@@ -520,6 +553,7 @@ function FriendsPanel(props: {
           {friends.outgoing.map((u) => (
             <div className="frow" key={u}>
               <span className={`dot ${isOnline(u) ? "on" : "off"}`} />
+              <Avatar handle={u} url={avatars[u]} size={28} />
               <span className="fname">{u}</span>
               <span className="muted">pending…</span>
             </div>
@@ -535,6 +569,7 @@ function FriendsPanel(props: {
           friends.friends.map((u) => (
             <div className="frow" key={u}>
               <span className={`dot ${isOnline(u) ? "on" : "off"}`} />
+              <Avatar handle={u} url={avatars[u]} size={28} />
               <span className="fname">{u}</span>
               <span className="muted">{isOnline(u) ? "online" : "offline"}</span>
               <button onClick={() => props.openDM(u)}>Message</button>
@@ -559,6 +594,7 @@ function VoicePanel(props: {
   setMuted: (v: boolean) => void;
   participants: string[];
   me: string;
+  avatars: Record<string, string>;
   join: () => void;
   leave: () => void;
 }) {
@@ -578,7 +614,7 @@ function VoicePanel(props: {
           <div className="voice-grid">
             {props.participants.map((u) => (
               <div className="voice-tile" key={u}>
-                <div className="avatar">{u.slice(0, 2).toUpperCase()}</div>
+                <Avatar handle={u} url={props.avatars[u]} size={56} />
                 <span className="fname">
                   {u}
                   {u === props.me ? " (you)" : ""}

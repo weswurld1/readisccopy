@@ -68,6 +68,8 @@ interface KV {
   zrem(key: string, member: string): Promise<void>;
   zAbove(key: string, minScore: number): Promise<string[]>;
   zPruneBelow(key: string, maxScore: number): Promise<void>;
+  hset(key: string, field: string, value: string): Promise<void>;
+  hgetall(key: string): Promise<Record<string, string>>;
 }
 
 const redisKV: KV = {
@@ -104,17 +106,26 @@ const redisKV: KV = {
   async zPruneBelow(key, maxScore) {
     await redis!.zremrangebyscore(key, 0, maxScore);
   },
+  async hset(key, field, value) {
+    await redis!.hset(key, { [field]: value });
+  },
+  async hgetall(key) {
+    return ((await redis!.hgetall(key)) as Record<string, string>) ?? {};
+  },
 };
 
 type Mem = {
   lists: Record<string, unknown[]>;
   sets: Record<string, Set<string>>;
   zsets: Record<string, Map<string, number>>;
+  hashes: Record<string, Record<string, string>>;
 };
 
 const g = globalThis as unknown as { __relayMem?: Mem };
 const mem: Mem =
-  g.__relayMem ?? (g.__relayMem = { lists: {}, sets: {}, zsets: {} });
+  g.__relayMem ??
+  (g.__relayMem = { lists: {}, sets: {}, zsets: {}, hashes: {} });
+if (!mem.hashes) mem.hashes = {};
 
 const memKV: KV = {
   async lpushTrim(key, value, max) {
@@ -159,6 +170,12 @@ const memKV: KV = {
       if (score <= maxScore) z.delete(member);
     });
   },
+  async hset(key, field, value) {
+    (mem.hashes[key] ?? (mem.hashes[key] = {}))[field] = value;
+  },
+  async hgetall(key) {
+    return mem.hashes[key] ?? {};
+  },
 };
 
 const kv: KV = redis ? redisKV : memKV;
@@ -174,6 +191,7 @@ const K = {
   reqIn: (n: string) => `relay:req:in:${n}`,
   reqOut: (n: string) => `relay:req:out:${n}`,
   voice: (room: string) => `relay:voice:${room}`,
+  avatars: "relay:avatars",
 };
 
 // ---------- helpers ----------
@@ -237,6 +255,17 @@ export async function heartbeat(name: string): Promise<void> {
 
 export function onlineUsers(): Promise<string[]> {
   return kv.zAbove(K.presence, Date.now() - PRESENCE_TTL);
+}
+
+// ---------- public API: avatars (handle -> image URL) ----------
+
+export async function setAvatar(handle: string, url: string): Promise<void> {
+  if (!handle || !url) return;
+  await kv.hset(K.avatars, handle, url);
+}
+
+export function getAvatars(): Promise<Record<string, string>> {
+  return kv.hgetall(K.avatars);
 }
 
 // ---------- public API: friends ----------

@@ -179,8 +179,8 @@ body {
   padding: 4px 8px;
   border-radius: 6px;
   display: flex;
-  gap: 10px;
-  align-items: baseline;
+  gap: 8px;
+  align-items: center;
 }
 
 .msg:hover {
@@ -536,9 +536,13 @@ button.danger {
   gap: 8px;
   width: 92px;
 }
-.avatar {
-  width: 56px;
-  height: 56px;
+.avatar-img {
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-input);
+}
+.avatar-initials {
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
@@ -546,7 +550,20 @@ button.danger {
   align-items: center;
   justify-content: center;
   font-weight: 700;
+  font-size: 11px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.voice-tile .avatar-initials {
   font-size: 18px;
+}
+.msg .avatar-img,
+.msg .avatar-initials {
+  font-size: 10px;
+}
+.channel .avatar-img,
+.channel .avatar-initials {
+  font-size: 9px;
 }
 .voice-controls {
   display: flex;

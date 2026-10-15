@@ -12,10 +12,11 @@ type Props = {
   url: string;
   token: string;
   me: string;
+  avatars?: Record<string, string>;
   onLeave: () => void;
 };
 
-export default function VoiceRoom({ url, token, me, onLeave }: Props) {
+export default function VoiceRoom({ url, token, me, avatars, onLeave }: Props) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [muted, setMuted] = useState(false);
   const [status, setStatus] = useState("connecting…");
@@ -105,15 +106,33 @@ export default function VoiceRoom({ url, token, me, onLeave }: Props) {
         <div className="hint">Connecting…</div>
       ) : (
         <div className="voice-grid">
-          {participants.map((u) => (
-            <div className="voice-tile" key={u}>
-              <div className="avatar">{u.slice(0, 2).toUpperCase()}</div>
-              <span className="fname">
-                {u}
-                {u === me ? " (you)" : ""}
-              </span>
-            </div>
-          ))}
+          {participants.map((u) => {
+            const url = avatars?.[u];
+            return (
+              <div className="voice-tile" key={u}>
+                {url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    className="avatar-img"
+                    style={{ width: 56, height: 56 }}
+                    src={url}
+                    alt={u}
+                  />
+                ) : (
+                  <div
+                    className="avatar-initials"
+                    style={{ width: 56, height: 56 }}
+                  >
+                    {u.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <span className="fname">
+                  {u}
+                  {u === me ? " (you)" : ""}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 
