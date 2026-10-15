@@ -6,6 +6,8 @@ import {
   RoomEvent,
   Track,
   type RemoteTrack,
+  type LocalTrackPublication,
+  type Track as TrackType,
 } from "livekit-client";
 
 type Props = {
@@ -13,15 +15,25 @@ type Props = {
   token: string;
   me: string;
   avatars?: Record<string, string>;
+  openProfile?: (h: string) => void;
   onLeave: () => void;
 };
 
-export default function VoiceRoom({ url, token, me, avatars, onLeave }: Props) {
+export default function VoiceRoom({
+  url,
+  token,
+  me,
+  avatars,
+  openProfile,
+  onLeave,
+}: Props) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [muted, setMuted] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [status, setStatus] = useState("connecting…");
   const roomRef = useRef<Room | null>(null);
   const audioRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,16 +41,19 @@ export default function VoiceRoom({ url, token, me, avatars, onLeave }: Props) {
     roomRef.current = room;
 
     const refresh = () => {
-      const names = [
+      setParticipants([
         room.localParticipant.identity,
         ...Array.from(room.remoteParticipants.values()).map((p) => p.identity),
-      ];
-      setParticipants(names);
+      ]);
     };
 
-    const attach = (track: RemoteTrack) => {
+    const attach = (track: RemoteTrack | TrackType) => {
       if (track.kind === Track.Kind.Audio && audioRef.current) {
         audioRef.current.appendChild(track.attach());
+      } else if (track.kind === Track.Kind.Video && videoRef.current) {
+        const el = track.attach();
+        el.setAttribute("data-sid", track.sid ?? "");
+        videoRef.current.appendChild(el);
       }
     };
 
@@ -49,6 +64,14 @@ export default function VoiceRoom({ url, token, me, avatars, onLeave }: Props) {
       .on(RoomEvent.TrackUnsubscribed, (track) =>
         track.detach().forEach((el) => el.remove())
       )
+      .on(RoomEvent.LocalTrackPublished, (pub: LocalTrackPublication) => {
+        if (pub.track && pub.track.kind === Track.Kind.Video) {
+          attach(pub.track);
+        }
+      })
+      .on(RoomEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
+        pub.track?.detach().forEach((el) => el.remove());
+      })
       .on(RoomEvent.Disconnected, () => {
         if (!cancelled) setStatus("disconnected");
       });
@@ -87,6 +110,19 @@ export default function VoiceRoom({ url, token, me, avatars, onLeave }: Props) {
     await room.localParticipant.setMicrophoneEnabled(!next);
   }
 
+  async function toggleShare() {
+    const room = roomRef.current;
+    if (!room) return;
+    const next = !sharing;
+    try {
+      await room.localParticipant.setScreenShareEnabled(next);
+      setSharing(next);
+    } catch {
+      // user cancelled the picker or capture failed
+      setSharing(false);
+    }
+  }
+
   function leave() {
     roomRef.current?.disconnect();
     onLeave();
@@ -95,9 +131,7 @@ export default function VoiceRoom({ url, token, me, avatars, onLeave }: Props) {
   return (
     <div className="card">
       <div className="voice-status">
-        <span
-          className={`dot ${status === "connected" ? "on" : "off"}`}
-        />
+        <span className={`dot ${status === "connected" ? "on" : "off"}`} />
         {status === "connected" ? "Live audio connected" : status}
       </div>
 
@@ -109,7 +143,11 @@ export default function VoiceRoom({ url, token, me, avatars, onLeave }: Props) {
           {participants.map((u) => {
             const url = avatars?.[u];
             return (
-              <div className="voice-tile" key={u}>
+              <button
+                className="voice-tile tile-btn"
+                key={u}
+                onClick={() => openProfile?.(u)}
+              >
                 {url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -130,15 +168,21 @@ export default function VoiceRoom({ url, token, me, avatars, onLeave }: Props) {
                   {u}
                   {u === me ? " (you)" : ""}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
       )}
 
+      {/* shared screens (remote + your own preview) attach here */}
+      <div ref={videoRef} className="screenshare-grid" />
+
       <div className="voice-controls">
         <button className={muted ? "ghost" : ""} onClick={toggleMute}>
           {muted ? "Unmute" : "Mute"}
+        </button>
+        <button className={sharing ? "danger" : ""} onClick={toggleShare}>
+          {sharing ? "Stop sharing" : "Share screen"}
         </button>
         <button className="danger" onClick={leave}>
           Leave

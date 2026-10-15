@@ -1,4 +1,10 @@
-const { app, BrowserWindow, shell, session } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  shell,
+  session,
+  desktopCapturer,
+} = require("electron");
 
 // The hosted Relay app this desktop shell loads.
 // Change this to YOUR Vercel URL (or set RELAY_URL in the environment).
@@ -43,6 +49,21 @@ app.whenReady().then(() => {
   );
   session.defaultSession.setPermissionCheckHandler(
     (_wc, permission) => permission === "media"
+  );
+
+  // Screen sharing: answer getDisplayMedia() requests. Tries the OS picker
+  // where supported, otherwise auto-selects the primary screen.
+  session.defaultSession.setDisplayMediaRequestHandler(
+    (_request, callback) => {
+      desktopCapturer
+        .getSources({ types: ["screen", "window"] })
+        .then((sources) => {
+          if (sources.length) callback({ video: sources[0], audio: "loopback" });
+          else callback({});
+        })
+        .catch(() => callback({}));
+    },
+    { useSystemPicker: true }
   );
 
   createWindow();

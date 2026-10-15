@@ -577,6 +577,132 @@ button.danger {
   color: var(--text-muted);
 }
 
+/* ---- clickable name/avatar resets ---- */
+.linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.linklike:hover {
+  text-decoration: underline;
+}
+.avatar-btn,
+.tile-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.msg-author.linklike {
+  color: var(--accent);
+}
+
+/* ---- profile modal ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+.profile-card {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.modal-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  color: #fff;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 13px;
+}
+.profile-banner {
+  height: 72px;
+  background: linear-gradient(120deg, var(--accent), #8a5bfa);
+}
+.profile-body {
+  padding: 0 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.profile-avatar {
+  margin-top: -40px;
+  border: 5px solid var(--bg-sidebar);
+  border-radius: 50%;
+  background: var(--bg-sidebar);
+}
+.profile-name {
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 10px;
+}
+.profile-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+.profile-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.profile-actions button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.profile-actions button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+/* ---- screen share ---- */
+.screenshare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.screenshare-grid video {
+  width: 100%;
+  border-radius: 8px;
+  background: #000;
+  border: 1px solid var(--border);
+}
+
 @media (max-width: 640px) {
   .sidebar {
     width: 180px;

@@ -50,6 +50,7 @@ export default function ChatApp({
   const [friends, setFriends] = useState<FriendState>(EMPTY_FRIENDS);
   const [durable, setDurable] = useState<boolean | null>(null);
   const [avatars, setAvatars] = useState<Record<string, string>>({});
+  const [profile, setProfile] = useState<string | null>(null);
 
   const [addInput, setAddInput] = useState("");
   const [addMsg, setAddMsg] = useState("");
@@ -386,6 +387,7 @@ export default function ChatApp({
             friends={friends}
             isOnline={isOnline}
             avatars={avatars}
+            openProfile={setProfile}
             addInput={addInput}
             setAddInput={setAddInput}
             addFriend={addFriend}
@@ -413,6 +415,7 @@ export default function ChatApp({
               participants={participants}
               me={identity}
               avatars={avatars}
+              openProfile={setProfile}
               join={joinVoice}
               leave={leaveVoice}
             />
@@ -436,8 +439,19 @@ export default function ChatApp({
               ) : (
                 messages.map((m) => (
                   <div className="msg" key={m.id}>
-                    <Avatar handle={m.author} url={avatars[m.author]} size={22} />
-                    <span className="msg-author">{m.author}</span>
+                    <button
+                      className="avatar-btn"
+                      onClick={() => setProfile(m.author)}
+                      title={`View ${m.author}`}
+                    >
+                      <Avatar handle={m.author} url={avatars[m.author]} size={22} />
+                    </button>
+                    <button
+                      className="msg-author linklike"
+                      onClick={() => setProfile(m.author)}
+                    >
+                      {m.author}
+                    </button>
                     <span className="msg-time">
                       {new Date(m.ts).toLocaleTimeString([], {
                         hour: "2-digit",
@@ -471,6 +485,103 @@ export default function ChatApp({
           </>
         )}
       </main>
+
+      {profile && (
+        <ProfileCard
+          handle={profile}
+          me={identity}
+          avatarUrl={avatars[profile]}
+          online={isOnline(profile)}
+          relation={
+            profile === identity
+              ? "self"
+              : friends.friends.includes(profile)
+                ? "friend"
+                : friends.incoming.includes(profile)
+                  ? "incoming"
+                  : friends.outgoing.includes(profile)
+                    ? "outgoing"
+                    : "none"
+          }
+          onClose={() => setProfile(null)}
+          onMessage={() => {
+            setView({ type: "dm", id: profile });
+            setProfile(null);
+          }}
+          onAction={(action) => friendAction(action, profile)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ProfileCard(props: {
+  handle: string;
+  me: string;
+  avatarUrl?: string;
+  online: boolean;
+  relation: "self" | "friend" | "incoming" | "outgoing" | "none";
+  onClose: () => void;
+  onMessage: () => void;
+  onAction: (action: string) => void;
+}) {
+  const { handle, avatarUrl, online, relation } = props;
+  return (
+    <div className="modal-backdrop" onClick={props.onClose}>
+      <div className="profile-card" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={props.onClose}>
+          ✕
+        </button>
+        <div className="profile-banner" />
+        <div className="profile-body">
+          <div className="profile-avatar">
+            <Avatar handle={handle} url={avatarUrl} size={80} />
+          </div>
+          <div className="profile-name">{handle}</div>
+          <div className="profile-status">
+            <span className={`dot ${online ? "on" : "off"}`} />
+            {online ? "Online" : "Offline"}
+          </div>
+
+          <div className="profile-actions">
+            {relation === "self" && (
+              <span className="muted">This is you.</span>
+            )}
+            {relation === "friend" && (
+              <>
+                <button onClick={props.onMessage}>Message</button>
+                <button
+                  className="ghost"
+                  onClick={() => props.onAction("remove")}
+                >
+                  Remove friend
+                </button>
+              </>
+            )}
+            {relation === "incoming" && (
+              <>
+                <button onClick={() => props.onAction("accept")}>
+                  Accept request
+                </button>
+                <button
+                  className="ghost"
+                  onClick={() => props.onAction("decline")}
+                >
+                  Decline
+                </button>
+              </>
+            )}
+            {relation === "outgoing" && (
+              <span className="muted">Friend request sent.</span>
+            )}
+            {relation === "none" && (
+              <button onClick={() => props.onAction("request")}>
+                Add friend
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -501,6 +612,7 @@ function FriendsPanel(props: {
   friends: FriendState;
   isOnline: (u: string) => boolean;
   avatars: Record<string, string>;
+  openProfile: (h: string) => void;
   addInput: string;
   setAddInput: (v: string) => void;
   addFriend: (e: React.FormEvent) => void;
@@ -508,7 +620,7 @@ function FriendsPanel(props: {
   friendAction: (action: string, target: string) => void;
   openDM: (f: string) => void;
 }) {
-  const { friends, isOnline, avatars } = props;
+  const { friends, isOnline, avatars, openProfile } = props;
   return (
     <div className="panel">
       <section className="card">
@@ -531,8 +643,12 @@ function FriendsPanel(props: {
           {friends.incoming.map((u) => (
             <div className="frow" key={u}>
               <span className={`dot ${isOnline(u) ? "on" : "off"}`} />
-              <Avatar handle={u} url={avatars[u]} size={28} />
-              <span className="fname">{u}</span>
+              <button className="avatar-btn" onClick={() => openProfile(u)}>
+                <Avatar handle={u} url={avatars[u]} size={28} />
+              </button>
+              <button className="fname linklike" onClick={() => openProfile(u)}>
+                {u}
+              </button>
               <button onClick={() => props.friendAction("accept", u)}>
                 Accept
               </button>
@@ -553,8 +669,12 @@ function FriendsPanel(props: {
           {friends.outgoing.map((u) => (
             <div className="frow" key={u}>
               <span className={`dot ${isOnline(u) ? "on" : "off"}`} />
-              <Avatar handle={u} url={avatars[u]} size={28} />
-              <span className="fname">{u}</span>
+              <button className="avatar-btn" onClick={() => openProfile(u)}>
+                <Avatar handle={u} url={avatars[u]} size={28} />
+              </button>
+              <button className="fname linklike" onClick={() => openProfile(u)}>
+                {u}
+              </button>
               <span className="muted">pending…</span>
             </div>
           ))}
@@ -569,8 +689,12 @@ function FriendsPanel(props: {
           friends.friends.map((u) => (
             <div className="frow" key={u}>
               <span className={`dot ${isOnline(u) ? "on" : "off"}`} />
-              <Avatar handle={u} url={avatars[u]} size={28} />
-              <span className="fname">{u}</span>
+              <button className="avatar-btn" onClick={() => openProfile(u)}>
+                <Avatar handle={u} url={avatars[u]} size={28} />
+              </button>
+              <button className="fname linklike" onClick={() => openProfile(u)}>
+                {u}
+              </button>
               <span className="muted">{isOnline(u) ? "online" : "offline"}</span>
               <button onClick={() => props.openDM(u)}>Message</button>
               <button
@@ -595,6 +719,7 @@ function VoicePanel(props: {
   participants: string[];
   me: string;
   avatars: Record<string, string>;
+  openProfile: (h: string) => void;
   join: () => void;
   leave: () => void;
 }) {
@@ -613,13 +738,17 @@ function VoicePanel(props: {
         ) : (
           <div className="voice-grid">
             {props.participants.map((u) => (
-              <div className="voice-tile" key={u}>
+              <button
+                className="voice-tile tile-btn"
+                key={u}
+                onClick={() => props.openProfile(u)}
+              >
                 <Avatar handle={u} url={props.avatars[u]} size={56} />
                 <span className="fname">
                   {u}
                   {u === props.me ? " (you)" : ""}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         )}
