@@ -34,6 +34,27 @@ const redis = makeRedis();
 /** True when a shared, durable store is active (survives cold starts / instances). */
 export const durable = redis !== null;
 
+/** Which backing env vars are present (names only, never values). */
+export function storeEnv() {
+  return {
+    UPSTASH_REDIS_REST_URL: !!process.env.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN: !!process.env.UPSTASH_REDIS_REST_TOKEN,
+    KV_REST_API_URL: !!process.env.KV_REST_API_URL,
+    KV_REST_API_TOKEN: !!process.env.KV_REST_API_TOKEN,
+  };
+}
+
+/** Live connectivity check against Redis (if configured). */
+export async function ping(): Promise<{ ok: boolean; error?: string }> {
+  if (!redis) return { ok: false, error: "no redis configured" };
+  try {
+    await redis.ping();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "ping failed" };
+  }
+}
+
 // ---------- tiny KV abstraction (Redis or in-memory) ----------
 
 interface KV {
