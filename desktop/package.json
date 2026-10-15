@@ -6,9 +6,10 @@
   "author": "weswurld1",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "electron": "33.2.1",
     "electron-builder": "25.1.8"
   },
@@ -19,11 +20,20 @@
       "output": "dist",
       "buildResources": "build"
     },
-    "files": ["main.js", "package.json"],
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US"
+    ],
     "win": {
-      "target": ["zip"]
+      "target": [
+        "nsis"
+      ],
+      "signAndEditExecutable": false
     },
-    "//nsis-note": "The 'nsis' installer target needs Windows Developer Mode ON (Settings > Privacy & security > For developers) so electron-builder can extract its winCodeSign helper, which contains symlinks. With that enabled, add 'nsis' to win.target. 'zip' needs no special privilege.",
     "nsis": {
       "oneClick": false,
       "perMachine": false,

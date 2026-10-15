@@ -17,22 +17,23 @@ npm start
 A native window opens running Relay. Microphone is granted automatically so
 LiveKit voice works.
 
-## 3. Build the shareable Windows app
+## 3. Build the shareable Windows installer
 ```bash
 cd desktop
 npm install
 npm run dist
 ```
 Output lands in `desktop/dist/`:
-- **`Relay-<version>-win.zip`** — unzip and run `Relay.exe`. Send this to
-  friends; they need no Node, repo, or browser.
+- **`Relay Setup <version>.exe`** — a one-click installer (~71 MB, LZMA-
+  compressed). Send this to friends; they just run it. No Node, repo, or
+  browser needed.
 
-### Want a one-click installer (.exe) instead?
-The `nsis` installer target needs **Windows Developer Mode** enabled (Settings →
-Privacy & security → For developers → Developer Mode **On**). electron-builder's
-code-sign helper archive contains symlinks that Windows won't extract without
-that privilege. Once it's on, set `"win": { "target": ["nsis", "zip"] }` in
-`package.json` and re-run `npm run dist` to also get `Relay Setup <version>.exe`.
+The build sets `signAndEditExecutable: false` and runs with
+`CSC_IDENTITY_AUTO_DISCOVERY=false` (see `package.json` / `npm run dist`), which
+skips code-signing. That avoids electron-builder's winCodeSign helper, whose
+archive contains symlinks Windows refuses to extract without Developer Mode — so
+no special privileges are required. `compression: "maximum"` +
+`electronLanguages: ["en-US"]` keep the installer small.
 
 ## Notes & caveats
 - **Windows SmartScreen:** unsigned apps show a "Windows protected your PC"

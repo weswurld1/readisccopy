@@ -24,7 +24,7 @@ type View =
 const CHANNELS = ["general", "random", "dev"];
 const VOICE_ROOM = "lounge";
 const DOWNLOAD_URL =
-  "https://github.com/weswurld1/readisccopy/releases/latest/download/Relay-win-x64.zip";
+  "https://github.com/weswurld1/readisccopy/releases/latest/download/Relay-Setup.exe";
 const EMPTY_FRIENDS: FriendState = { friends: [], incoming: [], outgoing: [] };
 
 export default function ChatApp({

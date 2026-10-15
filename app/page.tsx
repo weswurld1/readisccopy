@@ -5,7 +5,7 @@ import ChatApp from "./ChatApp";
 import ClerkMode from "./ClerkMode";
 
 const DOWNLOAD_URL =
-  "https://github.com/weswurld1/readisccopy/releases/latest/download/Relay-win-x64.zip";
+  "https://github.com/weswurld1/readisccopy/releases/latest/download/Relay-Setup.exe";
 
 // NEXT_PUBLIC_* is inlined at build time, so this is known on the client.
 const clerkEnabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -64,8 +64,9 @@ function NameMode() {
           </a>
           <p className="gate-note">
             Name-based identity (no password) — a demo, not secure. Anyone can
-            use any free name. The desktop download is a .zip — extract and run
-            Relay.exe.
+            use any free name. The desktop download is a one-click Windows
+            installer (unsigned — click “More info → Run anyway” if SmartScreen
+            warns).
           </p>
         </form>
       </div>
