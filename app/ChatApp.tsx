@@ -31,10 +31,12 @@ export default function ChatApp({
   identity,
   onSwitch,
   switchLabel,
+  accountControl,
 }: {
   identity: string;
-  onSwitch: () => void;
-  switchLabel: string;
+  onSwitch?: () => void;
+  switchLabel?: string;
+  accountControl?: React.ReactNode;
 }) {
   const [view, setView] = useState<View>({ type: "channel", id: "general" });
 
@@ -348,9 +350,13 @@ export default function ChatApp({
           <div className="me-row">
             <span className={`dot on`} />
             <span className="me-name">{identity}</span>
-            <button className="link" onClick={onSwitch}>
-              {switchLabel}
-            </button>
+            {accountControl ? (
+              <span className="me-account">{accountControl}</span>
+            ) : (
+              <button className="link" onClick={onSwitch}>
+                {switchLabel}
+              </button>
+            )}
           </div>
           <div className="note small">
             {durable === null

@@ -1,6 +1,12 @@
 "use client";
 
-import { SignedIn, SignedOut, SignIn, useUser, useClerk } from "@clerk/nextjs";
+import {
+  SignedIn,
+  SignedOut,
+  SignIn,
+  UserButton,
+  useUser,
+} from "@clerk/nextjs";
 import ChatApp from "./ChatApp";
 
 function deriveHandle(user: ReturnType<typeof useUser>["user"]): string {
@@ -15,7 +21,6 @@ function deriveHandle(user: ReturnType<typeof useUser>["user"]): string {
 
 function SignedInApp() {
   const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
   if (!isLoaded) {
     return (
       <div className="gate">
@@ -33,8 +38,7 @@ function SignedInApp() {
   return (
     <ChatApp
       identity={identity}
-      onSwitch={() => signOut()}
-      switchLabel="sign out"
+      accountControl={<UserButton />}
     />
   );
 }

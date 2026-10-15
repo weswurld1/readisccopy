@@ -397,6 +397,11 @@ body {
   cursor: pointer;
   text-decoration: underline;
 }
+.me-account {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
 .note.small {
   font-size: 11px;
   padding: 6px 0 0;
